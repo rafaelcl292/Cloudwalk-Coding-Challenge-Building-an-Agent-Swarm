@@ -31,7 +31,7 @@ function getClerkClient() {
 
   clerkClient ??= createClerkClient({
     secretKey,
-    publishableKey: process.env.VITE_CLERK_PUBLISHABLE_KEY,
+    publishableKey: process.env.BUN_PUBLIC_CLERK_PUBLISHABLE_KEY,
   });
 
   return clerkClient;
@@ -70,7 +70,7 @@ export async function requireAuth(req: Request, context: RequestContext): Promis
       sessionId: auth.sessionId,
       orgId: auth.orgId ?? null,
       orgRole: auth.orgRole ?? null,
-      isAdmin: auth.orgRole === "admin",
+      isAdmin: auth.orgRole === "org:admin" || auth.orgRole === "admin",
     },
   };
 }

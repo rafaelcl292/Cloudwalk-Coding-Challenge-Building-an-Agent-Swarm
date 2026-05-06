@@ -55,7 +55,7 @@ The app expects the environment variables listed in `.env.example`.
 
 - `AI_GATEWAY_API_KEY` authenticates AI SDK calls through Vercel AI Gateway.
 - `AI_GATEWAY_MODEL` selects the default model for agent responses.
-- `VITE_CLERK_PUBLISHABLE_KEY` is used by the React client.
+- `BUN_PUBLIC_CLERK_PUBLISHABLE_KEY` is inlined into the React client by Bun.
 - `CLERK_SECRET_KEY` is used by server-side auth verification.
 - `DATABASE_URL` points to the Postgres database.
 - `APP_URL` is the public application URL used for callbacks and links.
@@ -63,6 +63,6 @@ The app expects the environment variables listed in `.env.example`.
 
 ## Implementation Notes
 
-Project setup follows the repository's local AI SDK and Clerk skill guidance. For AI SDK work, this project uses `ai`, `@ai-sdk/react`, `@ai-sdk/gateway`, and Zod, with later agent code expected to verify APIs against installed docs or source before use. For Clerk, this React SPA uses the current `@clerk/react` package and the `VITE_CLERK_PUBLISHABLE_KEY` client environment variable, while server auth will use `@clerk/backend`.
+Project setup follows the repository's local AI SDK and Clerk skill guidance. For AI SDK work, this project uses `ai`, `@ai-sdk/react`, `@ai-sdk/gateway`, and Zod, with later agent code expected to verify APIs against installed docs or source before use. For Clerk, this React SPA wraps the root app in `ClerkProvider`, uses `BUN_PUBLIC_CLERK_PUBLISHABLE_KEY` on the client, sends `getToken()` bearer tokens to protected APIs, and verifies sessions server-side with `@clerk/backend`.
 
 The full build plan is tracked in `PLAN.md`.

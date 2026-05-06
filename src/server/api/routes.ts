@@ -151,7 +151,7 @@ export async function conversationMessagesRoute(req: Request) {
 
 export async function dashboardRoute(req: Request) {
   const context = createRequestContext(req);
-  const auth = await requireAuth(req, context);
+  const auth = await requireAdmin(req, context);
 
   if (!auth.ok) {
     return auth.response;

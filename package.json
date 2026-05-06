@@ -20,6 +20,7 @@
     "@ai-sdk/react": "^3.0.177",
     "@clerk/backend": "^3.4.5",
     "@clerk/react": "^6.6.0",
+    "@clerk/ui": "^1.8.0",
     "ai": "^6.0.175",
     "bun-plugin-tailwind": "^0.1.2",
     "react": "^19",

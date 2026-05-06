@@ -1,6 +1,8 @@
+import { useAuth } from "@clerk/react";
 import { useRef } from "react";
 
 export function APITester() {
+  const { getToken } = useAuth();
   const responseInputRef = useRef<HTMLTextAreaElement>(null);
   const bodyInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -14,9 +16,20 @@ export function APITester() {
       const url = new URL(endpoint, location.href);
       const method = formData.get("method") as string;
       const body = bodyInputRef.current?.value.trim();
+      const token = await getToken();
+      const headers = new Headers();
+
+      if (body) {
+        headers.set("content-type", "application/json");
+      }
+
+      if (token) {
+        headers.set("authorization", `Bearer ${token}`);
+      }
+
       const res = await fetch(url, {
         method,
-        headers: body ? { "content-type": "application/json" } : undefined,
+        headers,
         body: body || undefined,
       });
 
