@@ -1,12 +1,14 @@
 {
-  "name": "bun-react-template",
+  "name": "cloudwalk-agent-swarm",
   "version": "0.1.0",
   "private": true,
+  "description": "Bun, React, Clerk, and AI SDK implementation of the CloudWalk agent swarm challenge.",
   "type": "module",
   "scripts": {
     "dev": "bun --hot src/index.ts",
     "start": "NODE_ENV=production bun src/index.ts",
     "build": "bun run build.ts",
+    "test": "bun test",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "lint": "oxlint",
@@ -14,10 +16,16 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@ai-sdk/gateway": "^3.0.110",
+    "@ai-sdk/react": "^3.0.177",
+    "@clerk/backend": "^3.4.5",
+    "@clerk/react": "^6.6.0",
+    "ai": "^6.0.175",
     "bun-plugin-tailwind": "^0.1.2",
     "react": "^19",
     "react-dom": "^19",
-    "tailwindcss": "^4.1.11"
+    "tailwindcss": "^4.1.11",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/bun": "latest",
