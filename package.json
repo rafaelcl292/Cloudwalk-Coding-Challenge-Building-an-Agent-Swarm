@@ -11,8 +11,8 @@
     "test": "bun test",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix",
+    "lint": "oxlint --type-aware --type-check src build.ts",
+    "lint:fix": "oxlint --type-aware --type-check --fix src build.ts",
     "prepare": "husky"
   },
   "dependencies": {
@@ -34,7 +34,8 @@
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
     "oxfmt": "^0.48.0",
-    "oxlint": "^1.63.0"
+    "oxlint": "^1.63.0",
+    "oxlint-tsgolint": "^0.22.1"
   },
   "lint-staged": {
     "*": "oxfmt --no-error-on-unmatched-pattern",

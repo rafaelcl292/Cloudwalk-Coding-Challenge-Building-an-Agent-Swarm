@@ -68,8 +68,8 @@ export async function requireAuth(req: Request, context: RequestContext): Promis
     user: {
       userId: auth.userId,
       sessionId: auth.sessionId,
-      orgId: auth.orgId,
-      orgRole: auth.orgRole,
+      orgId: auth.orgId ?? null,
+      orgRole: auth.orgRole ?? null,
       isAdmin: auth.orgRole === "admin",
     },
   };

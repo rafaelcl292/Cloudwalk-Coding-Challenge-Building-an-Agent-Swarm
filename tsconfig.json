@@ -32,5 +32,6 @@
     "noPropertyAccessFromIndexSignature": false
   },
 
+  "include": ["build.ts", "src/**/*"],
   "exclude": ["dist", "node_modules"]
 }
