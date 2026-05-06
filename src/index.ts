@@ -1,41 +1,49 @@
 import { serve } from "bun";
 import index from "./index.html";
+import {
+  apiRoute,
+  chatRoute,
+  conversationMessagesRoute,
+  conversationsRoute,
+  dashboardRoute,
+  healthRoute,
+  ingestRoute,
+  swarmRoute,
+  unknownApiRoute,
+} from "./server/api/routes";
 
 const server = serve({
+  port: process.env.PORT ? Number(process.env.PORT) : 3000,
   routes: {
-    // Serve index.html for all unmatched routes.
+    "/api/health": apiRoute({ GET: healthRoute }),
+    "/api/v1/health": apiRoute({ GET: healthRoute }),
+
+    "/api/chat": apiRoute({ POST: chatRoute }),
+    "/api/v1/chat": apiRoute({ POST: chatRoute }),
+
+    "/api/swarm": apiRoute({ POST: swarmRoute }),
+    "/api/v1/swarm": apiRoute({ POST: swarmRoute }),
+
+    "/api/conversations": apiRoute({ GET: conversationsRoute }),
+    "/api/v1/conversations": apiRoute({ GET: conversationsRoute }),
+
+    "/api/conversations/:id/messages": apiRoute({ GET: conversationMessagesRoute }),
+    "/api/v1/conversations/:id/messages": apiRoute({ GET: conversationMessagesRoute }),
+
+    "/api/dashboard": apiRoute({ GET: dashboardRoute }),
+    "/api/v1/dashboard": apiRoute({ GET: dashboardRoute }),
+
+    "/api/admin/ingest": apiRoute({ POST: ingestRoute }),
+    "/api/v1/admin/ingest": apiRoute({ POST: ingestRoute }),
+
+    "/api/*": unknownApiRoute,
     "/*": index,
-
-    "/api/hello": {
-      async GET(_req) {
-        return Response.json({
-          message: "Hello, world!",
-          method: "GET",
-        });
-      },
-      async PUT(_req) {
-        return Response.json({
-          message: "Hello, world!",
-          method: "PUT",
-        });
-      },
-    },
-
-    "/api/hello/:name": async (req) => {
-      const name = req.params.name;
-      return Response.json({
-        message: `Hello, ${name}!`,
-      });
-    },
   },
 
   development: process.env.NODE_ENV !== "production" && {
-    // Enable browser hot reloading in development
     hmr: true,
-
-    // Echo console logs from the browser to the server
     console: true,
   },
 });
 
-console.log(`🚀 Server running at ${server.url}`);
+console.log(`Server running at ${server.url}`);

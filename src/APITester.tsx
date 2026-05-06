@@ -2,6 +2,7 @@ import { useRef, type FormEvent } from "react";
 
 export function APITester() {
   const responseInputRef = useRef<HTMLTextAreaElement>(null);
+  const bodyInputRef = useRef<HTMLTextAreaElement>(null);
 
   const testEndpoint = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -12,10 +13,17 @@ export function APITester() {
       const endpoint = formData.get("endpoint") as string;
       const url = new URL(endpoint, location.href);
       const method = formData.get("method") as string;
-      const res = await fetch(url, { method });
+      const body = bodyInputRef.current?.value.trim();
+      const res = await fetch(url, {
+        method,
+        headers: body ? { "content-type": "application/json" } : undefined,
+        body: body || undefined,
+      });
 
-      const data = await res.json();
-      responseInputRef.current!.value = JSON.stringify(data, null, 2);
+      const contentType = res.headers.get("content-type") ?? "";
+      const data = contentType.includes("application/json") ? await res.json() : await res.text();
+      responseInputRef.current!.value =
+        typeof data === "string" ? data : JSON.stringify(data, null, 2);
     } catch (error) {
       responseInputRef.current!.value = String(error);
     }
@@ -34,16 +42,16 @@ export function APITester() {
           <option value="GET" className="py-1">
             GET
           </option>
-          <option value="PUT" className="py-1">
-            PUT
+          <option value="POST" className="py-1">
+            POST
           </option>
         </select>
         <input
           type="text"
           name="endpoint"
-          defaultValue="/api/hello"
+          defaultValue="/api/health"
           className="w-full flex-1 bg-transparent border-0 text-[#fbf0df] font-mono text-base py-1.5 px-2 outline-none focus:text-white placeholder-[#fbf0df]/40"
-          placeholder="/api/hello"
+          placeholder="/api/health"
         />
         <button
           type="submit"
@@ -52,6 +60,11 @@ export function APITester() {
           Send
         </button>
       </form>
+      <textarea
+        ref={bodyInputRef}
+        placeholder='Optional JSON body, e.g. {"message":"Hello","user_id":"client789"}'
+        className="w-full min-h-24 bg-[#1a1a1a] border-2 border-[#fbf0df] rounded-xl p-3 text-[#fbf0df] font-mono resize-y focus:border-[#f3d5a3] placeholder-[#fbf0df]/40"
+      />
       <textarea
         ref={responseInputRef}
         readOnly
