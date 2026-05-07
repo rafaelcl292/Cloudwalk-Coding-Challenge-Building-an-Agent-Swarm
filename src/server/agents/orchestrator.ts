@@ -11,7 +11,7 @@ import { createBlockedFallbackAnswer, createGuardrailsAgent } from "./guardrails
 import { createKnowledgeAgent, createKnowledgeFallbackAnswer } from "./knowledge-agent";
 import { getAgentModelConfig } from "./model";
 import { createHeuristicRoutePlan, createRouterAgent } from "./router-agent";
-import type { AgentAnswer, RoutePlan, SwarmRequest, SwarmResult } from "./schemas";
+import type { AgentAnswer, AgentName, RoutePlan, SwarmRequest, SwarmResult } from "./schemas";
 import { createSupportAgent, createSupportFallbackAnswer } from "./support-agent";
 
 export type RunSwarmOptions = {
@@ -149,11 +149,37 @@ async function runSelectedAgents(
   modelConfig: ReturnType<typeof getAgentModelConfig>,
   agentRunId: string | null,
 ): Promise<AgentAnswer> {
-  if (route.category === "blocked") {
-    if (!modelConfig) {
-      return createBlockedFallbackAnswer();
-    }
+  const answers: AgentAnswer[] = [];
 
+  for (const agentName of route.selectedAgents) {
+    const answer = await runAgent(agentName, input, route, modelConfig, agentRunId, answers);
+    answers.push(answer);
+
+    if (answer.handoffRequired || route.category === "blocked") {
+      break;
+    }
+  }
+
+  if (answers.length === 0) {
+    return createGeneralWebFallbackAnswer();
+  }
+
+  return combineAgentAnswers(answers);
+}
+
+async function runAgent(
+  agentName: AgentName,
+  input: SwarmRequest,
+  route: RoutePlan,
+  modelConfig: ReturnType<typeof getAgentModelConfig>,
+  agentRunId: string | null,
+  previousAnswers: AgentAnswer[],
+): Promise<AgentAnswer> {
+  if (!modelConfig) {
+    return createFallbackAnswer(agentName, input, route);
+  }
+
+  if (agentName === "guardrails") {
     const result = await createGuardrailsAgent(modelConfig).generate({
       prompt: input.message,
     });
@@ -161,34 +187,26 @@ async function runSelectedAgents(
     return result.output;
   }
 
-  if (route.category === "support") {
-    if (!modelConfig) {
-      return createSupportFallbackAnswer(input.challengeUserId);
-    }
-
+  if (agentName === "support") {
     const result = await createSupportAgent(modelConfig, { agentRunId }).generate({
       prompt: `User message: ${input.message}
 Challenge customer id: ${input.challengeUserId}
-Authenticated Clerk user id: ${input.authenticatedUserId}`,
+Authenticated Clerk user id: ${input.authenticatedUserId}
+Route plan: ${JSON.stringify(route)}
+Prior agent answers: ${JSON.stringify(previousAnswers)}`,
     });
 
     return result.output;
   }
 
-  if (route.category === "knowledge") {
-    if (!modelConfig) {
-      return createKnowledgeFallbackAnswer(input.message);
-    }
-
+  if (agentName === "knowledge") {
     const result = await createKnowledgeAgent(modelConfig).generate({
-      prompt: input.message,
+      prompt: `User message: ${input.message}
+Route plan: ${JSON.stringify(route)}
+Prior agent answers: ${JSON.stringify(previousAnswers)}`,
     });
 
     return result.output;
-  }
-
-  if (!modelConfig) {
-    return createGeneralWebFallbackAnswer();
   }
 
   const result = await createGeneralWebAgent(modelConfig).generate({
@@ -196,4 +214,43 @@ Authenticated Clerk user id: ${input.authenticatedUserId}`,
   });
 
   return result.output;
+}
+
+function createFallbackAnswer(
+  agentName: AgentName,
+  input: SwarmRequest,
+  route: RoutePlan,
+): AgentAnswer {
+  if (agentName === "guardrails") {
+    return createBlockedFallbackAnswer();
+  }
+
+  if (agentName === "support") {
+    const answer = createSupportFallbackAnswer(input.challengeUserId);
+
+    if (route.category === "handoff") {
+      return {
+        ...answer,
+        handoffRequired: true,
+        handoffReason: route.handoffReason ?? "Human support is required.",
+      };
+    }
+
+    return answer;
+  }
+
+  if (agentName === "knowledge") {
+    return createKnowledgeFallbackAnswer(input.message);
+  }
+
+  return createGeneralWebFallbackAnswer();
+}
+
+function combineAgentAnswers(answers: AgentAnswer[]): AgentAnswer {
+  return {
+    answer: answers.map((answer) => answer.answer).join("\n\n"),
+    sources: [...new Set(answers.flatMap((answer) => answer.sources))],
+    handoffRequired: answers.some((answer) => answer.handoffRequired),
+    handoffReason: answers.find((answer) => answer.handoffReason)?.handoffReason ?? null,
+  };
 }

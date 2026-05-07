@@ -36,4 +36,31 @@ describe("swarm orchestrator", () => {
     expect(result.response).toContain("Customer Support Agent");
     expect(result.handoffRequired).toBeFalse();
   });
+
+  test("combines sequential fallback agent responses", async () => {
+    const result = await runSwarm(
+      {
+        ...request,
+        message: "My Pix transfer failed, what are InfinitePay Pix limits?",
+      },
+      { persist: false, modelConfig: null },
+    );
+
+    expect(result.route.selectedAgents).toEqual(["support", "knowledge"]);
+    expect(result.response).toContain("Customer Support Agent");
+    expect(result.response).toContain("Knowledge Agent");
+  });
+
+  test("marks explicit handoff routes in fallback mode", async () => {
+    const result = await runSwarm(
+      {
+        ...request,
+        message: "I need to speak to a human about my blocked account",
+      },
+      { persist: false, modelConfig: null },
+    );
+
+    expect(result.route.category).toBe("handoff");
+    expect(result.handoffRequired).toBeTrue();
+  });
 });
