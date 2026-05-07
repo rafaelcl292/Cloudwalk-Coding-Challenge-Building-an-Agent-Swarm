@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { runSwarm } from "../agents/orchestrator";
 import { requireAdmin, requireAuth } from "../http/auth";
 import { createRequestContext, parseJsonBody } from "../http/request";
-import { jsonResponse, methodNotAllowed, notFound } from "../http/responses";
+import { apiError, jsonResponse, methodNotAllowed, notFound } from "../http/responses";
 
 const apiVersion = "v1";
 
@@ -100,18 +101,35 @@ export async function swarmRoute(req: Request) {
     return body.response;
   }
 
-  return jsonResponse({
-    apiVersion,
-    requestId: context.requestId,
-    userId: auth.user.userId,
-    challengeUserId: body.data.user_id,
-    response:
-      "Swarm API foundation is ready. Router and specialized agents will generate this response in a later step.",
-    route: {
-      status: "pending",
-      selectedAgents: [],
-    },
-  });
+  try {
+    const result = await runSwarm({
+      message: body.data.message,
+      challengeUserId: body.data.user_id,
+      authenticatedUserId: auth.user.userId,
+      requestId: context.requestId,
+    });
+
+    return jsonResponse({
+      apiVersion,
+      requestId: context.requestId,
+      userId: auth.user.userId,
+      challengeUserId: body.data.user_id,
+      response: result.response,
+      route: result.route,
+      conversationId: result.conversationId,
+      agentRunId: result.agentRunId,
+      sources: result.sources,
+      handoffRequired: result.handoffRequired,
+    });
+  } catch (error) {
+    return apiError(
+      context.requestId,
+      500,
+      "INTERNAL_SERVER_ERROR",
+      "Swarm orchestration failed.",
+      error instanceof Error ? { message: error.message } : undefined,
+    );
+  }
 }
 
 export async function conversationsRoute(req: Request) {

@@ -78,6 +78,6 @@ The server database layer is in `src/server/db`. It exposes the shared Bun SQL c
 
 ## Implementation Notes
 
-Project setup follows the repository's local AI SDK and Clerk skill guidance. For AI SDK work, this project uses `ai`, `@ai-sdk/react`, `@ai-sdk/gateway`, and Zod, with later agent code expected to verify APIs against installed docs or source before use. For Clerk, this React SPA wraps the root app in `ClerkProvider`, uses `BUN_PUBLIC_CLERK_PUBLISHABLE_KEY` on the client, sends `getToken()` bearer tokens to protected APIs, and verifies sessions server-side with `@clerk/backend`.
+Project setup follows the repository's local AI SDK and Clerk skill guidance. For AI SDK work, this project uses `ai`, `@ai-sdk/react`, `@ai-sdk/gateway`, and Zod. The first swarm core in `src/server/agents` follows the current AI SDK `ToolLoopAgent` and `Output.object` docs, with a typed Router Agent route plan and direct internal calls to Knowledge, Support, Guardrails, and General Web agent boundaries. For Clerk, this React SPA wraps the root app in `ClerkProvider`, uses `BUN_PUBLIC_CLERK_PUBLISHABLE_KEY` on the client, sends `getToken()` bearer tokens to protected APIs, and verifies sessions server-side with `@clerk/backend`.
 
 The full build plan is tracked in `PLAN.md`.
