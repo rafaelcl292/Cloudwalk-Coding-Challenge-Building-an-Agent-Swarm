@@ -8,11 +8,13 @@
     "dev": "bun --hot src/index.ts",
     "start": "NODE_ENV=production bun src/index.ts",
     "build": "bun run build.ts",
+    "db:migrate": "bun run scripts/migrate.ts",
+    "db:seed": "bun run scripts/seed.ts",
     "test": "bun test",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
-    "lint": "oxlint --type-aware --type-check src build.ts",
-    "lint:fix": "oxlint --type-aware --type-check --fix src build.ts",
+    "lint": "oxlint --type-aware --type-check src scripts build.ts",
+    "lint:fix": "oxlint --type-aware --type-check --fix src scripts build.ts",
     "prepare": "husky"
   },
   "dependencies": {
