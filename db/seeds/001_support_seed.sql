@@ -10,6 +10,15 @@ WITH customer AS (
   )
   VALUES
     (
+      'client789',
+      'Marina Silva',
+      'marina.silva@example.com',
+      'review',
+      'InfinitePay Pro',
+      '{"monthlyVolumeCents": 2500000, "dailyPayoutCents": 0}'::jsonb,
+      ARRAY['kyc_review', 'recent_transfer_failures']
+    ),
+    (
       'cust_active_001',
       'Ana Ribeiro',
       'ana.ribeiro@example.com',
@@ -60,6 +69,8 @@ JOIN (
   VALUES
     ('cust_active_001', 'payment', 12990, 'approved', NULL, '2026-04-28T14:20:00Z'::timestamptz),
     ('cust_active_001', 'payout', 87500, 'approved', NULL, '2026-04-29T09:10:00Z'::timestamptz),
+    ('client789', 'payout', 120000, 'failed', 'kyc_review_required', '2026-04-29T11:30:00Z'::timestamptz),
+    ('client789', 'payout', 85000, 'failed', 'daily_payout_limit_blocked_during_review', '2026-04-30T10:05:00Z'::timestamptz),
     ('cust_review_002', 'payment', 4990, 'failed', 'issuer_declined', '2026-04-27T18:45:00Z'::timestamptz),
     ('cust_review_002', 'payment', 4990, 'failed', 'risk_review', '2026-04-28T10:12:00Z'::timestamptz),
     ('cust_blocked_003', 'payout', 150000, 'failed', 'account_blocked', '2026-04-26T12:00:00Z'::timestamptz)
@@ -77,7 +88,7 @@ WHERE NOT EXISTS (
 WITH customer AS (
   SELECT id, external_customer_id
   FROM customer_profiles
-  WHERE external_customer_id IN ('cust_active_001', 'cust_review_002', 'cust_blocked_003')
+  WHERE external_customer_id IN ('client789', 'cust_active_001', 'cust_review_002', 'cust_blocked_003')
 )
 INSERT INTO support_tickets (
   customer_id,
@@ -90,6 +101,13 @@ SELECT customer.id, ticket.subject, ticket.status, ticket.priority, ticket.summa
 FROM customer
 JOIN (
   VALUES
+    (
+      'client789',
+      'Transfer failures during account review',
+      'open',
+      'high',
+      'Customer has repeated payout failures while KYC review is pending; route transfer questions to human support if unresolved.'
+    ),
     (
       'cust_review_002',
       'Payment failures under review',
