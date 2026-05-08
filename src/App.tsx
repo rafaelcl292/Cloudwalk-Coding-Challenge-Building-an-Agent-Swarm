@@ -22,7 +22,6 @@ function SignedInShell() {
       <main className="flex-1 flex flex-col">
         <ChatConsole />
       </main>
-      <Colophon />
     </div>
   );
 }
@@ -76,24 +75,6 @@ function NavLink({ children, active }: { children: React.ReactNode; active?: boo
         />
       ) : null}
     </a>
-  );
-}
-
-function Colophon() {
-  return (
-    <footer className="border-t border-rule">
-      <div className="mx-auto max-w-[1500px] px-6 sm:px-10 lg:px-14 py-5 flex flex-col sm:flex-row items-baseline justify-between gap-3">
-        <div className="kicker">
-          Set in <span className="text-paper">Fraunces</span>,{" "}
-          <span className="text-paper">General Sans</span>, &amp;{" "}
-          <span className="text-paper">JetBrains Mono</span>
-        </div>
-        <div className="kicker">
-          <span className="text-paper-mute">Printed on warm dark</span> ·{" "}
-          <span className="text-paper">No. 0d0c0b</span>
-        </div>
-      </div>
-    </footer>
   );
 }
 
