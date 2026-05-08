@@ -61,11 +61,14 @@ bun run fmt
 
 ## Configuration
 
-The app expects the environment variables listed in `.env.example`.
+The app expects the environment variables listed in `.env.example`. Configure either direct OpenAI or Vercel AI Gateway credentials.
 
+- `OPENAI_API_KEY` authenticates direct OpenAI calls through `@ai-sdk/openai`.
+- `OPENAI_MODEL` selects the direct OpenAI model for agent responses, for example `gpt-5.5`.
+- `OPENAI_EMBEDDING_MODEL` selects the direct OpenAI embedding model, for example `text-embedding-3-small`.
 - `AI_GATEWAY_API_KEY` authenticates AI SDK calls through Vercel AI Gateway.
-- `AI_GATEWAY_MODEL` selects the default model for agent responses.
-- `AI_GATEWAY_EMBEDDING_MODEL` selects the embedding model for RAG ingestion and retrieval. The default example uses `openai/text-embedding-3-small`, which matches the current 1536-dimension pgvector column.
+- `AI_GATEWAY_MODEL` selects the AI Gateway model for agent responses, for example `openai/gpt-5.5`.
+- `AI_GATEWAY_EMBEDDING_MODEL` selects the AI Gateway embedding model. The default example uses `openai/text-embedding-3-small`, which matches the current 1536-dimension pgvector column.
 - `BUN_PUBLIC_CLERK_PUBLISHABLE_KEY` is inlined into the React client by Bun.
 - `CLERK_SECRET_KEY` is used by server-side auth verification.
 - `DATABASE_URL` points to the Postgres database.
@@ -80,9 +83,17 @@ The server database layer is in `src/server/db`. It exposes the shared Bun SQL c
 
 ## RAG Knowledge Base
 
-`bun run rag:ingest` fetches the InfinitePay URLs listed in `CHALLENGE.md`, extracts readable text, chunks it, optionally embeds chunks through AI Gateway, and stores them in Postgres. If `AI_GATEWAY_EMBEDDING_MODEL` is not configured, ingestion still stores chunks and the retrieval path falls back to lexical scoring for local development and tests.
+`bun run rag:ingest` fetches the InfinitePay URLs listed in `CHALLENGE.md`, extracts readable text, chunks it, optionally embeds chunks through the configured provider, and stores them in Postgres. If no embedding model is configured, ingestion still stores chunks and the retrieval path falls back to lexical scoring.
 
 The Knowledge Agent exposes a `retrieveKnowledge` tool and is instructed to answer InfinitePay product questions from retrieved source snippets. General web questions use a separate `webSearch` tool so fresh or off-domain questions do not pollute the InfinitePay knowledge base.
+
+Run the challenge scenario report with real agent calls:
+
+```bash
+bun run challenge:e2e
+```
+
+This command requires either `OPENAI_API_KEY` plus `OPENAI_MODEL`, or `AI_GATEWAY_API_KEY` plus `AI_GATEWAY_MODEL`; the swarm does not generate agent responses without model credentials. It prints every model response for human review and exits with a non-zero status if routing, required tools, sources, handoff flags, or empty-response checks fail.
 
 ## Customer Support Tools
 
@@ -90,6 +101,6 @@ The Customer Support Agent uses typed AI SDK tools backed by seeded Postgres dat
 
 ## Implementation Notes
 
-Project setup follows the repository's local AI SDK and Clerk skill guidance. For AI SDK work, this project uses `ai`, `@ai-sdk/react`, `@ai-sdk/gateway`, and Zod. The first swarm core in `src/server/agents` follows the current AI SDK `ToolLoopAgent` and `Output.object` docs, with a typed Router Agent route plan and direct internal calls to Knowledge, Support, Guardrails, and General Web agent boundaries. For Clerk, this React SPA wraps the root app in `ClerkProvider`, uses `BUN_PUBLIC_CLERK_PUBLISHABLE_KEY` on the client, sends `getToken()` bearer tokens to protected APIs, and verifies sessions server-side with `@clerk/backend`.
+Project setup follows the repository's local AI SDK and Clerk skill guidance. For AI SDK work, this project uses `ai`, `@ai-sdk/react`, `@ai-sdk/openai`, `@ai-sdk/gateway`, and Zod. The swarm uses three challenge-facing agents: Router, Knowledge, and Customer Support. The Router creates a typed route plan, the orchestrator executes selected agents through direct internal calls, and each downstream agent receives prior agent answers as context so agents can communicate without an external queue. The Knowledge Agent owns both InfinitePay RAG retrieval and web search; the Support Agent owns customer-data tools. For Clerk, this React SPA wraps the root app in `ClerkProvider`, uses `BUN_PUBLIC_CLERK_PUBLISHABLE_KEY` on the client, sends `getToken()` bearer tokens to protected APIs, and verifies sessions server-side with `@clerk/backend`.
 
 The full build plan is tracked in `PLAN.md`.
