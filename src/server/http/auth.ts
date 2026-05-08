@@ -21,6 +21,7 @@ export type AuthResult =
     };
 
 let clerkClient: ClerkClient | null = null;
+const clerkClockSkewInMs = Number(process.env.CLERK_CLOCK_SKEW_MS ?? 30_000);
 
 function getClerkClient() {
   const secretKey = process.env.CLERK_SECRET_KEY;
@@ -52,9 +53,20 @@ export async function requireAuth(req: Request, context: RequestContext): Promis
     };
   }
 
-  const requestState = await client.authenticateRequest(req);
+  const requestState = await client.authenticateRequest(req, {
+    clockSkewInMs: clerkClockSkewInMs,
+  });
 
   if (!requestState.isAuthenticated) {
+    console.warn("[auth] Clerk request rejected", {
+      requestId: context.requestId,
+      reason: requestState.reason,
+      message: requestState.message,
+      hasAuthorization: req.headers.has("authorization"),
+      method: req.method,
+      path: new URL(req.url).pathname,
+    });
+
     return {
       ok: false,
       response: apiError(context.requestId, 401, "UNAUTHORIZED", "Authentication required."),
