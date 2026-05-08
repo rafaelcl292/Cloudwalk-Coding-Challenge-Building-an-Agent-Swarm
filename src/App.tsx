@@ -1,5 +1,9 @@
 import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/react";
+import { ApiPage } from "./ApiPage";
 import { ChatConsole } from "./ChatConsole";
+import { DashboardPage } from "./DashboardPage";
+import { KnowledgePage } from "./KnowledgePage";
+import { hrefFor, type Route, useHashRoute } from "./useHashRoute";
 import "./index.css";
 
 export function App() {
@@ -16,32 +20,47 @@ export function App() {
 }
 
 function SignedInShell() {
+  const route = useHashRoute();
+
   return (
     <div className="flex flex-col min-h-screen">
-      <Masthead />
+      <Masthead route={route} />
       <main className="flex-1 flex flex-col">
-        <ChatConsole />
+        {route === "console" ? <ChatConsole /> : null}
+        {route === "dashboard" ? <DashboardPage /> : null}
+        {route === "knowledge" ? <KnowledgePage /> : null}
+        {route === "api" ? <ApiPage /> : null}
       </main>
     </div>
   );
 }
 
-function Masthead() {
+function Masthead({ route }: { route: Route }) {
   return (
     <header className="border-b border-rule">
       <div className="mx-auto max-w-[1500px] px-6 sm:px-10 lg:px-14 py-4 flex items-center justify-between gap-6">
-        <div className="flex items-center gap-3">
+        <a href={hrefFor("console")} className="flex items-center gap-3 group">
           <span className="ornament text-3xl leading-none">❦</span>
           <div className="leading-tight">
             <div className="kicker">CloudWalk · Agent Swarm</div>
-            <div className="display-tight text-lg">The Swarm Review</div>
+            <div className="display-tight text-lg group-hover:text-paper transition-colors">
+              The Swarm Review
+            </div>
           </div>
-        </div>
+        </a>
         <nav className="hidden md:flex items-center gap-7">
-          <NavLink active>Console</NavLink>
-          <NavLink>Dashboard</NavLink>
-          <NavLink>Knowledge</NavLink>
-          <NavLink>API</NavLink>
+          <NavLink route="console" current={route}>
+            Console
+          </NavLink>
+          <NavLink route="dashboard" current={route}>
+            Dashboard
+          </NavLink>
+          <NavLink route="knowledge" current={route}>
+            Knowledge
+          </NavLink>
+          <NavLink route="api" current={route}>
+            API
+          </NavLink>
         </nav>
         <div className="flex items-center gap-3">
           <span className="pill pill-moss hidden sm:inline-flex">
@@ -58,10 +77,19 @@ function Masthead() {
   );
 }
 
-function NavLink({ children, active }: { children: React.ReactNode; active?: boolean }) {
+function NavLink({
+  route,
+  current,
+  children,
+}: {
+  route: Route;
+  current: Route;
+  children: React.ReactNode;
+}) {
+  const active = route === current;
   return (
     <a
-      href="#"
+      href={hrefFor(route)}
       className={`smallcaps text-[0.95rem] tracking-[0.12em] hover:text-paper transition-colors ${
         active ? "text-paper" : "text-paper-dim"
       }`}
