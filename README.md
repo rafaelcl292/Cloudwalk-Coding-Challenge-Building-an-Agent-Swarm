@@ -95,6 +95,10 @@ bun run challenge:e2e
 
 This command requires either `OPENAI_API_KEY` plus `OPENAI_MODEL`, or `AI_GATEWAY_API_KEY` plus `AI_GATEWAY_MODEL`; the swarm does not generate agent responses without model credentials. It prints every model response for human review and exits with a non-zero status if routing, required tools, sources, handoff flags, or empty-response checks fail.
 
+## Frontend
+
+The web client is an editorial-fintech, dark-themed React SPA called _The Swarm Review_. After signing in through Clerk, users land in a chat console that frames each assistant turn as a typeset article: a route-plan masthead (category, confidence, and the agents that wrote it), a drop-cap article body, and a marginalia rail listing the route's rationale, required tools, and cited sources. Handoff cases render a clearly marked editor's note instead of an answer. The UI is built on Tailwind v4 with a custom `@theme` palette (warm off-black canvas, parchment ink, vermilion accent) and pairs Fraunces, General Sans, and JetBrains Mono. Chat is wired directly to the existing `/api/swarm` JSON endpoint with the user's Clerk bearer token; the `user_id` field used for support routing is editable in the sidebar and defaults to `client789`.
+
 ## Customer Support Tools
 
 The Customer Support Agent uses typed AI SDK tools backed by seeded Postgres data: `getCustomerProfile`, `getRecentTransactions`, `getOpenTickets`, `createSupportTicket`, and `summarizeAccountIssue`. The summary path marks handoff when the account is blocked, under review, missing, identity-sensitive, or showing repeated transaction failures.
