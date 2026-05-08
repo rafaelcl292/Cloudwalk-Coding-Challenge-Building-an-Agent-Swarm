@@ -102,7 +102,7 @@ export async function searchKnowledgeChunks(
   if (embedding) {
     const vector = `[${embedding.join(",")}]`;
 
-    return database<KnowledgeSearchResult[]>`
+    const vectorRows = await database<KnowledgeSearchResult[]>`
       SELECT
         kc.id,
         kc.source_id,
@@ -119,8 +119,16 @@ export async function searchKnowledgeChunks(
       ORDER BY kc.embedding <=> ${vector}::vector
       LIMIT ${limit}
     `;
+
+    if (vectorRows.length > 0) {
+      return vectorRows;
+    }
   }
 
+  return searchKnowledgeChunksLexically(query, limit, database);
+}
+
+async function searchKnowledgeChunksLexically(query: string, limit: number, database: Database) {
   const rows = await database<KnowledgeSearchResult[]>`
     SELECT
       kc.id,
@@ -154,7 +162,7 @@ export async function searchKnowledgeChunks(
 
 export function scoreKnowledgeChunk(query: string, chunkText: string) {
   const terms = tokenizeSearchText(query);
-  const normalizedChunk = chunkText.toLowerCase();
+  const normalizedChunk = normalizeSearchText(chunkText);
 
   if (terms.length === 0) {
     return 0;
@@ -168,12 +176,16 @@ export function scoreKnowledgeChunk(query: string, chunkText: string) {
 function tokenizeSearchText(value: string) {
   return [
     ...new Set(
-      value
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
+      normalizeSearchText(value)
         .split(/[^a-z0-9]+/)
         .filter((term) => term.length > 2),
     ),
   ];
+}
+
+function normalizeSearchText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
