@@ -216,17 +216,17 @@ Prior agent answers: ${JSON.stringify(previousAnswers)}`,
   return result.output;
 }
 
-function createFallbackAnswer(
+async function createFallbackAnswer(
   agentName: AgentName,
   input: SwarmRequest,
   route: RoutePlan,
-): AgentAnswer | Promise<AgentAnswer> {
+): Promise<AgentAnswer> {
   if (agentName === "guardrails") {
     return createBlockedFallbackAnswer();
   }
 
   if (agentName === "support") {
-    const answer = createSupportFallbackAnswer(input.challengeUserId);
+    const answer = await createSupportFallbackAnswer(input.challengeUserId);
 
     if (route.category === "handoff") {
       return {

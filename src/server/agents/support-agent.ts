@@ -1,12 +1,18 @@
 import { Output, ToolLoopAgent, tool } from "ai";
 import { z } from "zod";
 import {
+  createSupportTicket,
   getCustomerProfileByExternalId,
   getOpenTickets,
   getRecentTransactions,
   recordToolCall,
 } from "../db";
-import type { JsonValue } from "../db";
+import type {
+  CustomerProfileRow,
+  CustomerTransactionRow,
+  JsonValue,
+  SupportTicketRow,
+} from "../db";
 import { agentAnswerSchema, type AgentAnswer } from "./schemas";
 import type { AgentModelConfig } from "./model";
 
@@ -63,20 +69,146 @@ export function createSupportAgent(config: AgentModelConfig, context: ToolContex
             return { tickets };
           }),
       }),
+      createSupportTicket: tool({
+        description: "Create a support ticket when the customer needs human assistance.",
+        inputSchema: z.object({
+          customerId: z.string().min(1),
+          subject: z.string().min(1),
+          priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
+          summary: z.string().min(1),
+        }),
+        execute: async (input, options) =>
+          trackTool("createSupportTicket", input, options.experimental_context, async () => {
+            const ticket = await createSupportTicket(input);
+
+            return { ticket };
+          }),
+      }),
+      summarizeAccountIssue: tool({
+        description: "Summarize profile, transaction, and ticket signals for handoff decisions.",
+        inputSchema: z.object({
+          externalCustomerId: z.string().min(1),
+        }),
+        execute: async (input, options) =>
+          trackTool("summarizeAccountIssue", input, options.experimental_context, async () => {
+            const snapshot = await loadSupportSnapshot(input.externalCustomerId);
+            const summary = summarizeAccountIssue(snapshot);
+
+            return { ...summary, snapshot };
+          }),
+      }),
     },
     instructions: `You are the Customer Support Agent.
 Use customer tools before making account-specific claims. The user's challenge customer id is available in the prompt; pass it to getCustomerProfile as externalCustomerId.
-If account status is blocked, review, identity-sensitive, or data is missing, explain that human handoff is required instead of inventing a resolution.
+Use getCustomerProfile and summarizeAccountIssue first. Use getRecentTransactions when the profile exists and the user asks about payments, transfers, failures, or limits. Use getOpenTickets before creating a new ticket.
+If account status is blocked, review, identity-sensitive, missing, or repeated failures are found, set handoffRequired and explain the handoff reason instead of inventing a resolution.
 Keep responses direct and mention which customer data informed the answer.`,
   });
 }
 
-export function createSupportFallbackAnswer(challengeUserId: string): AgentAnswer {
+export async function createSupportFallbackAnswer(challengeUserId: string): Promise<AgentAnswer> {
+  try {
+    const snapshot = await loadSupportSnapshot(challengeUserId);
+    const summary = summarizeAccountIssue(snapshot);
+
+    if (!snapshot.profile) {
+      return {
+        answer: `I routed this to the Customer Support Agent for customer ${challengeUserId}, but no customer profile was found. A human should verify the customer identity before account-specific support continues.`,
+        sources: [],
+        handoffRequired: true,
+        handoffReason: summary.handoffReason,
+      };
+    }
+
+    return {
+      answer: `I routed this to the Customer Support Agent for ${snapshot.profile.name}. ${summary.summary}`,
+      sources: [],
+      handoffRequired: summary.handoffRequired,
+      handoffReason: summary.handoffReason,
+    };
+  } catch {
+    return {
+      answer: `I routed this to the Customer Support Agent for customer ${challengeUserId}. AI Gateway is not configured, so the LLM support agent did not run; the database-backed support tools can inspect the seeded customer profile, transactions, and tickets when Postgres is available.`,
+      sources: [],
+      handoffRequired: false,
+      handoffReason: null,
+    };
+  }
+}
+
+export type SupportSnapshot = {
+  profile: CustomerProfileRow | null;
+  transactions: CustomerTransactionRow[];
+  tickets: SupportTicketRow[];
+};
+
+export function summarizeAccountIssue(snapshot: SupportSnapshot) {
+  if (!snapshot.profile) {
+    return {
+      summary: "No customer profile was found for the supplied customer id.",
+      handoffRequired: true,
+      handoffReason: "Missing customer profile.",
+    };
+  }
+
+  const failedTransactions = snapshot.transactions.filter(
+    (transaction) => transaction.status === "failed",
+  );
+  const hasSensitiveFlag = snapshot.profile.support_flags.some((flag) =>
+    ["identity_review", "chargeback_watch", "manual_review"].includes(flag),
+  );
+
+  if (snapshot.profile.account_status === "blocked") {
+    return {
+      summary: `The account is blocked on the ${snapshot.profile.plan} plan. Open tickets: ${snapshot.tickets.length}. Recent failed transactions: ${failedTransactions.length}. Human review is required before advising on transfers or account access.`,
+      handoffRequired: true,
+      handoffReason: "Blocked account requires human review.",
+    };
+  }
+
+  if (snapshot.profile.account_status === "review" || hasSensitiveFlag) {
+    return {
+      summary: `The account is under review or has sensitive support flags. Open tickets: ${snapshot.tickets.length}. Human support should verify the case before providing account-specific resolution steps.`,
+      handoffRequired: true,
+      handoffReason: "Account review or identity-sensitive support flag.",
+    };
+  }
+
+  if (failedTransactions.length >= 2) {
+    return {
+      summary: `The active account has ${failedTransactions.length} recent failed transactions. Share the visible failure reasons and escalate if the failures continue after standard checks.`,
+      handoffRequired: true,
+      handoffReason: "Repeated recent transaction failures.",
+    };
+  }
+
   return {
-    answer: `I routed this to the Customer Support Agent for customer ${challengeUserId}. AI Gateway is not configured, so the LLM support agent did not run; the next support step can use the seeded customer profile and transaction tools for this user.`,
-    sources: [],
+    summary: `The account is ${snapshot.profile.account_status} on the ${snapshot.profile.plan} plan. Recent transactions: ${snapshot.transactions.length}. Open tickets: ${snapshot.tickets.length}. No automatic handoff trigger was found.`,
     handoffRequired: false,
     handoffReason: null,
+  };
+}
+
+async function loadSupportSnapshot(externalCustomerId: string): Promise<SupportSnapshot> {
+  const profile = await getCustomerProfileByExternalId(externalCustomerId);
+
+  if (!profile) {
+    return {
+      profile: null,
+      transactions: [],
+      tickets: [],
+    };
+  }
+
+  const [transactions, tickets] = await Promise.all([
+    getRecentTransactions(profile.id, 10),
+    getOpenTickets(profile.id),
+  ]);
+
+  return {
+    profile,
+    transactions,
+    tickets,
   };
 }
 

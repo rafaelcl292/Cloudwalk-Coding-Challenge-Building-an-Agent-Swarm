@@ -84,6 +84,10 @@ The server database layer is in `src/server/db`. It exposes the shared Bun SQL c
 
 The Knowledge Agent exposes a `retrieveKnowledge` tool and is instructed to answer InfinitePay product questions from retrieved source snippets. General web questions use a separate `webSearch` tool so fresh or off-domain questions do not pollute the InfinitePay knowledge base.
 
+## Customer Support Tools
+
+The Customer Support Agent uses typed AI SDK tools backed by seeded Postgres data: `getCustomerProfile`, `getRecentTransactions`, `getOpenTickets`, `createSupportTicket`, and `summarizeAccountIssue`. The summary path marks handoff when the account is blocked, under review, missing, identity-sensitive, or showing repeated transaction failures.
+
 ## Implementation Notes
 
 Project setup follows the repository's local AI SDK and Clerk skill guidance. For AI SDK work, this project uses `ai`, `@ai-sdk/react`, `@ai-sdk/gateway`, and Zod. The first swarm core in `src/server/agents` follows the current AI SDK `ToolLoopAgent` and `Output.object` docs, with a typed Router Agent route plan and direct internal calls to Knowledge, Support, Guardrails, and General Web agent boundaries. For Clerk, this React SPA wraps the root app in `ClerkProvider`, uses `BUN_PUBLIC_CLERK_PUBLISHABLE_KEY` on the client, sends `getToken()` bearer tokens to protected APIs, and verifies sessions server-side with `@clerk/backend`.

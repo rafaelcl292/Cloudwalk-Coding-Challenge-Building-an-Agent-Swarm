@@ -27,6 +27,7 @@ describe("swarm orchestrator", () => {
     const result = await runSwarm(
       {
         ...request,
+        challengeUserId: "cust_active_001",
         message: "I can't sign in to my account.",
       },
       { persist: false, modelConfig: null },
@@ -41,6 +42,7 @@ describe("swarm orchestrator", () => {
     const result = await runSwarm(
       {
         ...request,
+        challengeUserId: "cust_active_001",
         message: "My Pix transfer failed, what are InfinitePay Pix limits?",
       },
       { persist: false, modelConfig: null },
