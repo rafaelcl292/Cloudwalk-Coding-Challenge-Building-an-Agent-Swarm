@@ -27,12 +27,13 @@ export type RecordToolCallInput = {
 };
 
 export async function createAgentRun(input: CreateAgentRunInput, database: Database = getDb()) {
+  const selectedAgents = input.selectedAgents ?? [];
   const rows = await database<AgentRunRow[]>`
     INSERT INTO agent_runs (conversation_id, router_decision, selected_agents, model)
     VALUES (
       ${input.conversationId ?? null},
       ${input.routerDecision ?? null},
-      ${input.selectedAgents ?? []}::text[],
+      ${database.array(selectedAgents, "TEXT")},
       ${input.model ?? null}
     )
     RETURNING *

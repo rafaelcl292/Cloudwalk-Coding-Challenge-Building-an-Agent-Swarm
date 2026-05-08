@@ -113,6 +113,15 @@ export async function runSwarm(
       handoffRequired: answer.handoffRequired,
     };
   } catch (error) {
+    console.error("[swarm] orchestration failed", {
+      requestId: input.requestId,
+      challengeUserId: input.challengeUserId,
+      authenticatedUserId: input.authenticatedUserId,
+      conversationId,
+      agentRunId,
+      error,
+    });
+
     if (persist && agentRunId) {
       await finishAgentRun({
         id: agentRunId,
