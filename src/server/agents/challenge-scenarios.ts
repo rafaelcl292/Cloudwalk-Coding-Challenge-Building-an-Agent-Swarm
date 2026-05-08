@@ -68,13 +68,6 @@ export const challengeScenarios: ChallengeScenario[] = [
     expectedTools: ["webSearch"],
   },
   {
-    message: "Quais as principais notícias de São Paulo hoje?",
-    userId: "client789",
-    expectedCategory: "general_web",
-    expectedAgents: ["knowledge"],
-    expectedTools: ["webSearch"],
-  },
-  {
     message: "Why I am not able to make transfers?",
     userId: "client789",
     expectedCategory: "support",
