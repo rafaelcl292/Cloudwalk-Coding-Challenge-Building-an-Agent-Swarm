@@ -10,6 +10,7 @@
     "build": "bun run build.ts",
     "db:migrate": "bun run scripts/migrate.ts",
     "db:seed": "bun run scripts/seed.ts",
+    "rag:ingest": "bun run scripts/ingest-knowledge.ts",
     "test": "bun test",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",

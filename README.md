@@ -49,6 +49,7 @@ Start local Postgres and apply the database schema:
 docker compose up -d postgres
 bun run db:migrate
 bun run db:seed
+bun run rag:ingest
 ```
 
 Run linting and formatting:
@@ -64,6 +65,7 @@ The app expects the environment variables listed in `.env.example`.
 
 - `AI_GATEWAY_API_KEY` authenticates AI SDK calls through Vercel AI Gateway.
 - `AI_GATEWAY_MODEL` selects the default model for agent responses.
+- `AI_GATEWAY_EMBEDDING_MODEL` selects the embedding model for RAG ingestion and retrieval. The default example uses `openai/text-embedding-3-small`, which matches the current 1536-dimension pgvector column.
 - `BUN_PUBLIC_CLERK_PUBLISHABLE_KEY` is inlined into the React client by Bun.
 - `CLERK_SECRET_KEY` is used by server-side auth verification.
 - `DATABASE_URL` points to the Postgres database.
@@ -75,6 +77,12 @@ The app expects the environment variables listed in `.env.example`.
 Local development uses `docker-compose.yml` with the `pgvector/pgvector` Postgres image and a persistent `postgres-data` volume. SQL migrations live in `db/migrations` and are applied in filename order by `bun run db:migrate`. Seed data for realistic support-agent tools lives in `db/seeds` and is loaded with `bun run db:seed`.
 
 The server database layer is in `src/server/db`. It exposes the shared Bun SQL client, typed row shapes, and repository modules for users, conversations, messages, agent runs, tool calls, knowledge sources/chunks, customer support data, and dashboard metrics.
+
+## RAG Knowledge Base
+
+`bun run rag:ingest` fetches the InfinitePay URLs listed in `CHALLENGE.md`, extracts readable text, chunks it, optionally embeds chunks through AI Gateway, and stores them in Postgres. If `AI_GATEWAY_EMBEDDING_MODEL` is not configured, ingestion still stores chunks and the retrieval path falls back to lexical scoring for local development and tests.
+
+The Knowledge Agent exposes a `retrieveKnowledge` tool and is instructed to answer InfinitePay product questions from retrieved source snippets. General web questions use a separate `webSearch` tool so fresh or off-domain questions do not pollute the InfinitePay knowledge base.
 
 ## Implementation Notes
 

@@ -220,7 +220,7 @@ function createFallbackAnswer(
   agentName: AgentName,
   input: SwarmRequest,
   route: RoutePlan,
-): AgentAnswer {
+): AgentAnswer | Promise<AgentAnswer> {
   if (agentName === "guardrails") {
     return createBlockedFallbackAnswer();
   }
