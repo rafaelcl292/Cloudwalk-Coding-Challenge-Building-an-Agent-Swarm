@@ -6,17 +6,16 @@ import {
   recordToolCall,
   upsertUser,
 } from "../db";
-import { createGeneralWebAgent, createGeneralWebFallbackAnswer } from "./general-web-agent";
-import { createBlockedFallbackAnswer, createGuardrailsAgent } from "./guardrails-agent";
-import { createKnowledgeAgent, createKnowledgeFallbackAnswer } from "./knowledge-agent";
-import { getAgentModelConfig } from "./model";
-import { createHeuristicRoutePlan, createRouterAgent } from "./router-agent";
+import { createGuardrailsAgent } from "./guardrails-agent";
+import { createKnowledgeAgent } from "./knowledge-agent";
+import { getAgentModelConfig, type AgentModelConfig } from "./model";
+import { createRouterAgent } from "./router-agent";
 import type { AgentAnswer, AgentName, RoutePlan, SwarmRequest, SwarmResult } from "./schemas";
-import { createSupportAgent, createSupportFallbackAnswer } from "./support-agent";
+import { createSupportAgent } from "./support-agent";
 
 export type RunSwarmOptions = {
   persist?: boolean;
-  modelConfig?: ReturnType<typeof getAgentModelConfig>;
+  modelConfig?: AgentModelConfig;
 };
 
 export async function runSwarm(
@@ -62,7 +61,7 @@ export async function runSwarm(
         conversationId,
         routerDecision: route.category,
         selectedAgents: route.selectedAgents,
-        model: modelConfig?.modelId ?? null,
+        model: modelConfig.modelId,
       });
 
       agentRunId = run?.id ?? null;
@@ -127,14 +126,7 @@ export async function runSwarm(
   }
 }
 
-async function planRoute(
-  message: string,
-  modelConfig: ReturnType<typeof getAgentModelConfig>,
-): Promise<RoutePlan> {
-  if (!modelConfig) {
-    return createHeuristicRoutePlan(message);
-  }
-
+async function planRoute(message: string, modelConfig: AgentModelConfig): Promise<RoutePlan> {
   const router = createRouterAgent(modelConfig);
   const result = await router.generate({
     prompt: `User message: ${message}`,
@@ -146,7 +138,7 @@ async function planRoute(
 async function runSelectedAgents(
   input: SwarmRequest,
   route: RoutePlan,
-  modelConfig: ReturnType<typeof getAgentModelConfig>,
+  modelConfig: AgentModelConfig,
   agentRunId: string | null,
 ): Promise<AgentAnswer> {
   const answers: AgentAnswer[] = [];
@@ -160,10 +152,6 @@ async function runSelectedAgents(
     }
   }
 
-  if (answers.length === 0) {
-    return createGeneralWebFallbackAnswer();
-  }
-
   return combineAgentAnswers(answers);
 }
 
@@ -171,14 +159,10 @@ async function runAgent(
   agentName: AgentName,
   input: SwarmRequest,
   route: RoutePlan,
-  modelConfig: ReturnType<typeof getAgentModelConfig>,
+  modelConfig: AgentModelConfig,
   agentRunId: string | null,
   previousAnswers: AgentAnswer[],
 ): Promise<AgentAnswer> {
-  if (!modelConfig) {
-    return createFallbackAnswer(agentName, input, route);
-  }
-
   if (agentName === "guardrails") {
     const result = await createGuardrailsAgent(modelConfig).generate({
       prompt: input.message,
@@ -209,41 +193,8 @@ Prior agent answers: ${JSON.stringify(previousAnswers)}`,
     return result.output;
   }
 
-  const result = await createGeneralWebAgent(modelConfig).generate({
-    prompt: input.message,
-  });
-
-  return result.output;
-}
-
-async function createFallbackAnswer(
-  agentName: AgentName,
-  input: SwarmRequest,
-  route: RoutePlan,
-): Promise<AgentAnswer> {
-  if (agentName === "guardrails") {
-    return createBlockedFallbackAnswer();
-  }
-
-  if (agentName === "support") {
-    const answer = await createSupportFallbackAnswer(input.challengeUserId);
-
-    if (route.category === "handoff") {
-      return {
-        ...answer,
-        handoffRequired: true,
-        handoffReason: route.handoffReason ?? "Human support is required.",
-      };
-    }
-
-    return answer;
-  }
-
-  if (agentName === "knowledge") {
-    return createKnowledgeFallbackAnswer(input.message);
-  }
-
-  return createGeneralWebFallbackAnswer();
+  const unreachableAgent: never = agentName;
+  throw new Error(`Unsupported agent selected by router: ${String(unreachableAgent)}`);
 }
 
 function combineAgentAnswers(answers: AgentAnswer[]): AgentAnswer {

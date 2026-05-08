@@ -8,61 +8,47 @@ const request = {
 };
 
 describe("swarm orchestrator", () => {
-  test("returns a fallback knowledge response without AI Gateway config", async () => {
-    const result = await runSwarm(
-      {
-        ...request,
-        message: "What are the fees of the Maquininha Smart?",
-      },
-      { persist: false, modelConfig: null },
+  test("requires LLM configuration", async () => {
+    const previousOpenAiApiKey = process.env.OPENAI_API_KEY;
+    const previousOpenAiModel = process.env.OPENAI_MODEL;
+    const previousGatewayApiKey = process.env.AI_GATEWAY_API_KEY;
+    const previousGatewayModel = process.env.AI_GATEWAY_MODEL;
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_MODEL;
+    delete process.env.AI_GATEWAY_API_KEY;
+    delete process.env.AI_GATEWAY_MODEL;
+
+    await expectRequiredConfigError(
+      runSwarm(
+        {
+          ...request,
+          message: "What are the fees of the Maquininha Smart?",
+        },
+        { persist: false },
+      ),
     );
 
-    expect(result.route.category).toBe("knowledge");
-    expect(result.response).toContain("Knowledge Agent");
-    expect(result.conversationId).toBeNull();
-    expect(result.agentRunId).toBeNull();
-  });
-
-  test("returns a fallback support response without persistence", async () => {
-    const result = await runSwarm(
-      {
-        ...request,
-        challengeUserId: "cust_active_001",
-        message: "I can't sign in to my account.",
-      },
-      { persist: false, modelConfig: null },
-    );
-
-    expect(result.route.category).toBe("support");
-    expect(result.response).toContain("Customer Support Agent");
-    expect(result.handoffRequired).toBeFalse();
-  });
-
-  test("combines sequential fallback agent responses", async () => {
-    const result = await runSwarm(
-      {
-        ...request,
-        challengeUserId: "cust_active_001",
-        message: "My Pix transfer failed, what are InfinitePay Pix limits?",
-      },
-      { persist: false, modelConfig: null },
-    );
-
-    expect(result.route.selectedAgents).toEqual(["support", "knowledge"]);
-    expect(result.response).toContain("Customer Support Agent");
-    expect(result.response).toContain("Knowledge Agent");
-  });
-
-  test("marks explicit handoff routes in fallback mode", async () => {
-    const result = await runSwarm(
-      {
-        ...request,
-        message: "I need to speak to a human about my blocked account",
-      },
-      { persist: false, modelConfig: null },
-    );
-
-    expect(result.route.category).toBe("handoff");
-    expect(result.handoffRequired).toBeTrue();
+    restoreEnv("OPENAI_API_KEY", previousOpenAiApiKey);
+    restoreEnv("OPENAI_MODEL", previousOpenAiModel);
+    restoreEnv("AI_GATEWAY_API_KEY", previousGatewayApiKey);
+    restoreEnv("AI_GATEWAY_MODEL", previousGatewayModel);
   });
 });
+
+async function expectRequiredConfigError(promise: Promise<unknown>) {
+  try {
+    await promise;
+    throw new Error("Expected swarm to require LLM configuration.");
+  } catch (error) {
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain("LLM configuration is required");
+  }
+}
+
+function restoreEnv(name: string, value: string | undefined) {
+  if (value === undefined) {
+    delete process.env[name];
+  } else {
+    process.env[name] = value;
+  }
+}

@@ -1,15 +1,5 @@
-import { gateway } from "@ai-sdk/gateway";
 import { embed, embedMany } from "ai";
-
-export function getEmbeddingModel() {
-  const modelId = process.env.AI_GATEWAY_EMBEDDING_MODEL;
-
-  if (!modelId || !process.env.AI_GATEWAY_API_KEY) {
-    return null;
-  }
-
-  return gateway.embeddingModel(modelId);
-}
+import { getEmbeddingModel } from "../agents/model";
 
 export async function embedQuery(value: string) {
   const model = getEmbeddingModel();

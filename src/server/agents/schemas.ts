@@ -8,26 +8,37 @@ export const routeCategorySchema = z.enum([
   "blocked",
 ]);
 
-export const agentNameSchema = z.enum(["guardrails", "knowledge", "support", "general_web"]);
+export const agentNameSchema = z.enum(["guardrails", "knowledge", "support"]);
+
+export const routeToolNameSchema = z.enum([
+  "retrieveKnowledge",
+  "webSearch",
+  "getCustomerProfile",
+  "getRecentTransactions",
+  "getOpenTickets",
+  "createSupportTicket",
+  "summarizeAccountIssue",
+]);
 
 export const routePlanSchema = z.object({
   category: routeCategorySchema,
   confidence: z.number().min(0).max(1),
   rationale: z.string().min(1),
   selectedAgents: z.array(agentNameSchema).min(1),
-  requiredTools: z.array(z.string()).default([]),
-  handoffReason: z.string().nullable().default(null),
+  requiredTools: z.array(routeToolNameSchema),
+  handoffReason: z.string().nullable(),
 });
 
 export const agentAnswerSchema = z.object({
   answer: z.string().min(1),
-  sources: z.array(z.string()).default([]),
-  handoffRequired: z.boolean().default(false),
-  handoffReason: z.string().nullable().default(null),
+  sources: z.array(z.string()),
+  handoffRequired: z.boolean(),
+  handoffReason: z.string().nullable(),
 });
 
 export type RouteCategory = z.infer<typeof routeCategorySchema>;
 export type AgentName = z.infer<typeof agentNameSchema>;
+export type RouteToolName = z.infer<typeof routeToolNameSchema>;
 export type RoutePlan = z.infer<typeof routePlanSchema>;
 export type AgentAnswer = z.infer<typeof agentAnswerSchema>;
 

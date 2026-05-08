@@ -13,7 +13,7 @@ import type {
   JsonValue,
   SupportTicketRow,
 } from "../db";
-import { agentAnswerSchema, type AgentAnswer } from "./schemas";
+import { agentAnswerSchema } from "./schemas";
 import type { AgentModelConfig } from "./model";
 
 type ToolContext = {
@@ -104,36 +104,6 @@ Use getCustomerProfile and summarizeAccountIssue first. Use getRecentTransaction
 If account status is blocked, review, identity-sensitive, missing, or repeated failures are found, set handoffRequired and explain the handoff reason instead of inventing a resolution.
 Keep responses direct and mention which customer data informed the answer.`,
   });
-}
-
-export async function createSupportFallbackAnswer(challengeUserId: string): Promise<AgentAnswer> {
-  try {
-    const snapshot = await loadSupportSnapshot(challengeUserId);
-    const summary = summarizeAccountIssue(snapshot);
-
-    if (!snapshot.profile) {
-      return {
-        answer: `I routed this to the Customer Support Agent for customer ${challengeUserId}, but no customer profile was found. A human should verify the customer identity before account-specific support continues.`,
-        sources: [],
-        handoffRequired: true,
-        handoffReason: summary.handoffReason,
-      };
-    }
-
-    return {
-      answer: `I routed this to the Customer Support Agent for ${snapshot.profile.name}. ${summary.summary}`,
-      sources: [],
-      handoffRequired: summary.handoffRequired,
-      handoffReason: summary.handoffReason,
-    };
-  } catch {
-    return {
-      answer: `I routed this to the Customer Support Agent for customer ${challengeUserId}. AI Gateway is not configured, so the LLM support agent did not run; the database-backed support tools can inspect the seeded customer profile, transactions, and tickets when Postgres is available.`,
-      sources: [],
-      handoffRequired: false,
-      handoffReason: null,
-    };
-  }
 }
 
 export type SupportSnapshot = {

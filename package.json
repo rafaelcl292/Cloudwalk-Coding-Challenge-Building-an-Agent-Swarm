@@ -11,6 +11,7 @@
     "db:migrate": "bun run scripts/migrate.ts",
     "db:seed": "bun run scripts/seed.ts",
     "rag:ingest": "bun run scripts/ingest-knowledge.ts",
+    "challenge:e2e": "bun run scripts/challenge-e2e.ts",
     "test": "bun test",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
@@ -20,6 +21,7 @@
   },
   "dependencies": {
     "@ai-sdk/gateway": "^3.0.110",
+    "@ai-sdk/openai": "^3.0.63",
     "@ai-sdk/react": "^3.0.177",
     "@clerk/backend": "^3.4.5",
     "@clerk/react": "^6.6.0",
