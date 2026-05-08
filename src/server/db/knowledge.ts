@@ -93,6 +93,27 @@ export async function listKnowledgeSources(database: Database = getDb()) {
   `;
 }
 
+export type KnowledgeSourceWithCount = KnowledgeSourceRow & {
+  chunk_count: number;
+};
+
+export async function listKnowledgeSourcesWithCounts(database: Database = getDb()) {
+  const rows = await database<(KnowledgeSourceRow & { chunk_count: string | number })[]>`
+    SELECT
+      ks.*,
+      COALESCE(count(kc.id), 0) AS chunk_count
+    FROM knowledge_sources ks
+    LEFT JOIN knowledge_chunks kc ON kc.source_id = ks.id
+    GROUP BY ks.id
+    ORDER BY ks.source_url ASC
+  `;
+
+  return rows.map<KnowledgeSourceWithCount>((row) => ({
+    ...row,
+    chunk_count: Number(row.chunk_count ?? 0),
+  }));
+}
+
 export async function searchKnowledgeChunks(
   query: string,
   embedding: number[] | null,

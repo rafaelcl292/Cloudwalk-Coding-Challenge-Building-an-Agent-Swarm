@@ -8,6 +8,7 @@ import {
   dashboardRoute,
   healthRoute,
   ingestRoute,
+  knowledgeSourcesRoute,
   swarmRoute,
   unknownApiRoute,
 } from "./server/api/routes";
@@ -32,6 +33,9 @@ const server = serve({
 
     "/api/dashboard": apiRoute({ GET: dashboardRoute }),
     "/api/v1/dashboard": apiRoute({ GET: dashboardRoute }),
+
+    "/api/knowledge/sources": apiRoute({ GET: knowledgeSourcesRoute }),
+    "/api/v1/knowledge/sources": apiRoute({ GET: knowledgeSourcesRoute }),
 
     "/api/admin/ingest": apiRoute({ POST: ingestRoute }),
     "/api/v1/admin/ingest": apiRoute({ POST: ingestRoute }),

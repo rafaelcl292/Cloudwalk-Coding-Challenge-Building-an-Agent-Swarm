@@ -58,6 +58,15 @@ export async function finishAgentRun(input: FinishAgentRunInput, database: Datab
   return rows[0] ?? null;
 }
 
+export async function listRecentAgentRuns(limit = 20, database: Database = getDb()) {
+  return database<AgentRunRow[]>`
+    SELECT *
+    FROM agent_runs
+    ORDER BY created_at DESC
+    LIMIT ${limit}
+  `;
+}
+
 export async function recordToolCall(input: RecordToolCallInput, database: Database = getDb()) {
   const rows = await database<ToolCallRow[]>`
     INSERT INTO tool_calls (agent_run_id, tool_name, input, output, error, duration_ms)

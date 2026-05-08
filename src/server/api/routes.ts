@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { runSwarm } from "../agents/orchestrator";
+import { getDashboardMetrics, listKnowledgeSourcesWithCounts, listRecentAgentRuns } from "../db";
 import { requireAdmin, requireAuth } from "../http/auth";
 import { createRequestContext, parseJsonBody } from "../http/request";
 import { apiError, jsonResponse, methodNotAllowed, notFound } from "../http/responses";
+import { infinitePaySourceUrls } from "../rag/sources";
 
 const apiVersion = "v1";
 
@@ -169,25 +171,94 @@ export async function conversationMessagesRoute(req: Request) {
 
 export async function dashboardRoute(req: Request) {
   const context = createRequestContext(req);
-  const auth = await requireAdmin(req, context);
+  const auth = await requireAuth(req, context);
 
   if (!auth.ok) {
     return auth.response;
   }
 
-  return jsonResponse({
-    apiVersion,
-    requestId: context.requestId,
-    metrics: {
-      totalConversations: 0,
-      totalMessages: 0,
-      routerDecisions: {},
-      averageResponseLatencyMs: 0,
-      failedToolCalls: 0,
-      supportHandoffs: 0,
-    },
-    recentRuns: [],
-  });
+  try {
+    const [metrics, recentRuns] = await Promise.all([
+      getDashboardMetrics(),
+      listRecentAgentRuns(10),
+    ]);
+
+    return jsonResponse({
+      apiVersion,
+      requestId: context.requestId,
+      metrics,
+      recentRuns: recentRuns.map((run) => ({
+        id: run.id,
+        conversationId: run.conversation_id,
+        routerDecision: run.router_decision,
+        selectedAgents: run.selected_agents,
+        model: run.model,
+        status: run.status,
+        latencyMs: run.latency_ms,
+        error: run.error,
+        createdAt: run.created_at,
+      })),
+    });
+  } catch (error) {
+    return apiError(
+      context.requestId,
+      503,
+      "CONFIGURATION_ERROR",
+      "Dashboard metrics are unavailable. Verify the database connection.",
+      error instanceof Error ? { message: error.message } : undefined,
+    );
+  }
+}
+
+export async function knowledgeSourcesRoute(req: Request) {
+  const context = createRequestContext(req);
+  const auth = await requireAuth(req, context);
+
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  try {
+    const rows = await listKnowledgeSourcesWithCounts();
+    const seen = new Set(rows.map((row) => row.source_url));
+
+    const persisted = rows.map((row) => ({
+      sourceUrl: row.source_url,
+      title: row.title,
+      crawlStatus: row.crawl_status,
+      lastCrawledAt: row.last_crawled_at,
+      chunkCount: row.chunk_count,
+    }));
+
+    const pending = infinitePaySourceUrls
+      .filter((url) => !seen.has(url))
+      .map((url) => ({
+        sourceUrl: url,
+        title: null,
+        crawlStatus: "pending" as const,
+        lastCrawledAt: null,
+        chunkCount: 0,
+      }));
+
+    return jsonResponse({
+      apiVersion,
+      requestId: context.requestId,
+      sources: [...persisted, ...pending],
+    });
+  } catch {
+    return jsonResponse({
+      apiVersion,
+      requestId: context.requestId,
+      sources: infinitePaySourceUrls.map((url) => ({
+        sourceUrl: url,
+        title: null,
+        crawlStatus: "pending" as const,
+        lastCrawledAt: null,
+        chunkCount: 0,
+      })),
+      databaseAvailable: false,
+    });
+  }
 }
 
 export async function ingestRoute(req: Request) {
