@@ -1,6 +1,7 @@
 import { useAuth } from "@clerk/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PageHeader } from "./PageHeader";
+import { useAuthedFetch } from "./useAuthedFetch";
 
 type Metrics = {
   totalConversations: number;
@@ -35,29 +36,37 @@ type ApiError = {
 };
 
 export function DashboardPage() {
-  const { getToken } = useAuth();
+  const { isLoaded, isSignedIn } = useAuth();
+  const authedFetch = useAuthedFetch();
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const requestRef = useRef<Promise<DashboardResponse> | null>(null);
 
   useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+
     let cancelled = false;
     const load = async () => {
       setLoading(true);
       setError(null);
       try {
-        const token = await getToken();
-        const headers = new Headers();
-        if (token) headers.set("authorization", `Bearer ${token}`);
-        const res = await fetch("/api/dashboard", { headers });
-        if (!res.ok) {
-          const body = (await res.json().catch(() => null)) as ApiError | null;
-          throw new Error(body?.error?.message ?? `HTTP ${res.status}`);
-        }
-        const json = (await res.json()) as DashboardResponse;
+        requestRef.current ??= (async () => {
+          const res = await authedFetch("/api/dashboard");
+          if (!res.ok) {
+            const body = (await res.json().catch(() => null)) as ApiError | null;
+            throw new Error(body?.error?.message ?? `HTTP ${res.status}`);
+          }
+          return (await res.json()) as DashboardResponse;
+        })();
+
+        const json = await requestRef.current;
         if (!cancelled) setData(json);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err));
+          requestRef.current = null;
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -66,7 +75,7 @@ export function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [getToken]);
+  }, [authedFetch, isLoaded, isSignedIn]);
 
   return (
     <div className="mx-auto max-w-[1500px] px-6 sm:px-10 lg:px-14 py-10">

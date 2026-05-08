@@ -1,27 +1,44 @@
-import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/react";
+import { Show, SignInButton, SignUpButton, useAuth, UserButton } from "@clerk/react";
+import { useEffect } from "react";
 import { ApiPage } from "./ApiPage";
 import { ChatConsole } from "./ChatConsole";
 import { DashboardPage } from "./DashboardPage";
 import { KnowledgePage } from "./KnowledgePage";
-import { hrefFor, type Route, useHashRoute } from "./useHashRoute";
+import { hrefFor, navigate, type Route, useRoute } from "./useRoute";
 import "./index.css";
 
 export function App() {
+  const route = useRoute();
+  const { isLoaded, isSignedIn } = useAuth();
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (!isSignedIn && route !== "landing") {
+      navigate("landing", { replace: true });
+    }
+  }, [isLoaded, isSignedIn, route]);
+
+  if (route === "landing") {
+    return (
+      <div className="relative z-10 min-h-screen flex flex-col">
+        <SignedOutHero isSignedIn={isSignedIn === true} />
+      </div>
+    );
+  }
+
   return (
     <div className="relative z-10 min-h-screen flex flex-col">
       <Show when="signed-out">
-        <SignedOutHero />
+        <SignedOutHero isSignedIn={false} />
       </Show>
       <Show when="signed-in">
-        <SignedInShell />
+        <SignedInShell route={route} />
       </Show>
     </div>
   );
 }
 
-function SignedInShell() {
-  const route = useHashRoute();
-
+function SignedInShell({ route }: { route: Route }) {
   return (
     <div className="flex flex-col min-h-screen">
       <Masthead route={route} />
@@ -39,7 +56,14 @@ function Masthead({ route }: { route: Route }) {
   return (
     <header className="border-b border-rule">
       <div className="mx-auto max-w-[1500px] px-6 sm:px-10 lg:px-14 py-4 flex items-center justify-between gap-6">
-        <a href={hrefFor("console")} className="flex items-center gap-3 group">
+        <a
+          href={hrefFor("console")}
+          onClick={(e) => {
+            e.preventDefault();
+            navigate("console");
+          }}
+          className="flex items-center gap-3 group"
+        >
           <span className="ornament text-3xl leading-none">❦</span>
           <div className="leading-tight">
             <div className="kicker">CloudWalk · Agent Swarm</div>
@@ -90,6 +114,10 @@ function NavLink({
   return (
     <a
       href={hrefFor(route)}
+      onClick={(e) => {
+        e.preventDefault();
+        navigate(route);
+      }}
       className={`smallcaps text-[0.95rem] tracking-[0.12em] hover:text-paper transition-colors ${
         active ? "text-paper" : "text-paper-dim"
       }`}
@@ -106,7 +134,7 @@ function NavLink({
   );
 }
 
-function SignedOutHero() {
+function SignedOutHero({ isSignedIn }: { isSignedIn: boolean }) {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-rule">
@@ -119,19 +147,31 @@ function SignedOutHero() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <SignInButton mode="modal">
-              <button type="button" className="btn-ghost px-4 py-2 text-xs">
-                Sign in
-              </button>
-            </SignInButton>
-            <SignUpButton mode="modal">
+            {isSignedIn ? (
               <button
                 type="button"
+                onClick={() => navigate("console")}
                 className="btn-ember px-4 py-2 text-xs uppercase tracking-[0.18em]"
               >
-                Subscribe
+                Open console
               </button>
-            </SignUpButton>
+            ) : (
+              <>
+                <SignInButton mode="modal">
+                  <button type="button" className="btn-ghost px-4 py-2 text-xs">
+                    Sign in
+                  </button>
+                </SignInButton>
+                <SignUpButton mode="modal">
+                  <button
+                    type="button"
+                    className="btn-ember px-4 py-2 text-xs uppercase tracking-[0.18em]"
+                  >
+                    Subscribe
+                  </button>
+                </SignUpButton>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -156,19 +196,31 @@ function SignedOutHero() {
                 with its byline, its route, and its citations.
               </p>
               <div className="mt-9 flex flex-wrap gap-3 anim-rise stagger-2">
-                <SignUpButton mode="modal">
+                {isSignedIn ? (
                   <button
                     type="button"
+                    onClick={() => navigate("console")}
                     className="btn-ember px-6 py-3 text-xs uppercase tracking-[0.18em]"
                   >
-                    Begin reading
+                    Open console
                   </button>
-                </SignUpButton>
-                <SignInButton mode="modal">
-                  <button type="button" className="btn-ghost px-6 py-3 text-xs">
-                    I&rsquo;m a returning subscriber
-                  </button>
-                </SignInButton>
+                ) : (
+                  <>
+                    <SignUpButton mode="modal">
+                      <button
+                        type="button"
+                        className="btn-ember px-6 py-3 text-xs uppercase tracking-[0.18em]"
+                      >
+                        Begin reading
+                      </button>
+                    </SignUpButton>
+                    <SignInButton mode="modal">
+                      <button type="button" className="btn-ghost px-6 py-3 text-xs">
+                        I&rsquo;m a returning subscriber
+                      </button>
+                    </SignInButton>
+                  </>
+                )}
               </div>
             </div>
 

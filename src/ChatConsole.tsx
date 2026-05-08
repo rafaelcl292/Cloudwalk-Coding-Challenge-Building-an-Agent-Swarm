@@ -1,5 +1,6 @@
 import { useAuth, useUser } from "@clerk/react";
 import { useEffect, useRef, useState } from "react";
+import { useAuthedFetch } from "./useAuthedFetch";
 
 type RouteCategory = "knowledge" | "support" | "general_web" | "handoff" | "blocked";
 
@@ -49,8 +50,9 @@ const promptStarters = [
 ];
 
 export function ChatConsole() {
-  const { getToken } = useAuth();
+  const { isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
+  const authedFetch = useAuthedFetch();
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
@@ -73,20 +75,17 @@ export function ChatConsole() {
   const submit = async (raw: string) => {
     const message = raw.trim();
     if (!message || pending) return;
+    if (!isLoaded || !isSignedIn) return;
 
     setTurns((prev) => [...prev, { kind: "user", id: cryptoId(), message, at: new Date() }]);
     setDraft("");
     setPending(true);
 
     try {
-      const token = await getToken();
-      const headers = new Headers({ "content-type": "application/json" });
-      if (token) headers.set("authorization", `Bearer ${token}`);
-
       const startedAt = performance.now();
-      const res = await fetch("/api/swarm", {
+      const res = await authedFetch("/api/swarm", {
         method: "POST",
-        headers,
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ message, user_id: challengeUserId }),
       });
 

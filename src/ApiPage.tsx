@@ -1,6 +1,7 @@
 import { useAuth } from "@clerk/react";
 import { useState } from "react";
 import { PageHeader } from "./PageHeader";
+import { useAuthedFetch } from "./useAuthedFetch";
 
 type EndpointId = "swarm" | "health" | "dashboard" | "knowledge-sources" | "conversations";
 
@@ -79,7 +80,8 @@ type ResponseState =
   | { kind: "error"; message: string };
 
 export function ApiPage() {
-  const { getToken } = useAuth();
+  const { isLoaded, isSignedIn } = useAuth();
+  const authedFetch = useAuthedFetch();
   const [endpointId, setEndpointId] = useState<EndpointId>("swarm");
   const endpoint = endpoints.find((e) => e.id === endpointId)!;
   const [body, setBody] = useState<string>(endpoint.defaultBody ?? "");
@@ -93,12 +95,16 @@ export function ApiPage() {
   };
 
   const send = async () => {
+    if (!isLoaded || !isSignedIn) {
+      setResponse({
+        kind: "error",
+        message: "Authentication is still loading. Try again in a moment.",
+      });
+      return;
+    }
     setResponse({ kind: "loading" });
     try {
-      const token = await getToken();
       const headers = new Headers();
-      if (token) headers.set("authorization", `Bearer ${token}`);
-
       let payload: BodyInit | undefined;
       if (endpoint.method === "POST" && body.trim().length > 0) {
         try {
@@ -115,7 +121,7 @@ export function ApiPage() {
       }
 
       const startedAt = performance.now();
-      const res = await fetch(endpoint.path, {
+      const res = await authedFetch(endpoint.path, {
         method: endpoint.method,
         headers,
         body: payload,

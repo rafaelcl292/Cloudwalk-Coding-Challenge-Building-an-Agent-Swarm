@@ -1,6 +1,7 @@
 import { useAuth } from "@clerk/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PageHeader } from "./PageHeader";
+import { useAuthedFetch } from "./useAuthedFetch";
 
 type Source = {
   sourceUrl: string;
@@ -18,30 +19,38 @@ type SourcesResponse = {
 };
 
 export function KnowledgePage() {
-  const { getToken } = useAuth();
+  const { isLoaded, isSignedIn } = useAuth();
+  const authedFetch = useAuthedFetch();
   const [sources, setSources] = useState<Source[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [databaseAvailable, setDatabaseAvailable] = useState(true);
+  const requestRef = useRef<Promise<SourcesResponse> | null>(null);
 
   useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+
     let cancelled = false;
     const load = async () => {
       setLoading(true);
       setError(null);
       try {
-        const token = await getToken();
-        const headers = new Headers();
-        if (token) headers.set("authorization", `Bearer ${token}`);
-        const res = await fetch("/api/knowledge/sources", { headers });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = (await res.json()) as SourcesResponse;
+        requestRef.current ??= (async () => {
+          const res = await authedFetch("/api/knowledge/sources");
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return (await res.json()) as SourcesResponse;
+        })();
+
+        const json = await requestRef.current;
         if (!cancelled) {
           setSources(json.sources);
           setDatabaseAvailable(json.databaseAvailable !== false);
         }
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err));
+          requestRef.current = null;
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -50,7 +59,7 @@ export function KnowledgePage() {
     return () => {
       cancelled = true;
     };
-  }, [getToken]);
+  }, [authedFetch, isLoaded, isSignedIn]);
 
   const totalChunks = sources?.reduce((sum, s) => sum + s.chunkCount, 0) ?? 0;
   const ingested = sources?.filter((s) => s.crawlStatus === "succeeded").length ?? 0;
