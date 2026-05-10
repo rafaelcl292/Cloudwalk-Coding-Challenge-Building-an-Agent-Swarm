@@ -44,6 +44,22 @@ export async function listConversationsForUser(ownerUserId: string, database: Da
   `;
 }
 
+export async function getConversationForUser(
+  conversationId: string,
+  ownerUserId: string,
+  database: Database = getDb(),
+) {
+  const rows = await database<ConversationRow[]>`
+    SELECT *
+    FROM conversations
+    WHERE id = ${conversationId}
+      AND owner_user_id = ${ownerUserId}
+    LIMIT 1
+  `;
+
+  return rows[0] ?? null;
+}
+
 export async function updateConversationStatus(
   conversationId: string,
   status: ConversationStatus,

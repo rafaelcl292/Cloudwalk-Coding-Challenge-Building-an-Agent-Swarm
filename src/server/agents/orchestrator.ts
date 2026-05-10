@@ -3,9 +3,12 @@ import {
   createAgentRun,
   createConversation,
   finishAgentRun,
+  getConversationForUser,
+  listConversationMessages,
   recordToolCall,
   upsertUser,
 } from "../db";
+import type { MessageRow } from "../db/types";
 import { createGuardrailsAgent } from "./guardrails-agent";
 import { createKnowledgeAgent } from "./knowledge-agent";
 import { getAgentModelConfig, type AgentModelConfig } from "./model";
@@ -28,20 +31,29 @@ export async function runSwarm(
   const startedAt = performance.now();
   let conversationId: string | null = null;
   let agentRunId: string | null = null;
+  let history: MessageRow[] = [];
 
   try {
     if (persist) {
       const user = await upsertUser({ clerkUserId: input.authenticatedUserId });
-      const conversation = user
-        ? await createConversation({
-            ownerUserId: user.id,
-            title: input.message.slice(0, 80),
-          })
-        : null;
+      const conversation =
+        user && input.conversationId
+          ? await getConversationForUser(input.conversationId, user.id)
+          : user
+            ? await createConversation({
+                ownerUserId: user.id,
+                title: input.message.slice(0, 80),
+              })
+            : null;
 
       conversationId = conversation?.id ?? null;
 
+      if (user && input.conversationId && !conversationId) {
+        throw new Error("Conversation not found for authenticated user.");
+      }
+
       if (conversationId) {
+        history = await listConversationMessages(conversationId);
         await appendMessage({
           conversationId,
           role: "user",
@@ -54,7 +66,7 @@ export async function runSwarm(
       }
     }
 
-    const route = await planRoute(input.message, modelConfig);
+    const route = await planRoute(input.message, modelConfig, history);
 
     if (persist) {
       const run = await createAgentRun({
@@ -79,7 +91,7 @@ export async function runSwarm(
       }
     }
 
-    const answer = await runSelectedAgents(input, route, modelConfig, agentRunId);
+    const answer = await runSelectedAgents(input, route, modelConfig, agentRunId, history);
     const latencyMs = Math.round(performance.now() - startedAt);
 
     if (persist && conversationId) {
@@ -92,6 +104,8 @@ export async function runSwarm(
           sources: answer.sources,
           handoffRequired: answer.handoffRequired,
           handoffReason: answer.handoffReason,
+          latencyMs,
+          agentRunId,
         },
       });
     }
@@ -135,10 +149,17 @@ export async function runSwarm(
   }
 }
 
-async function planRoute(message: string, modelConfig: AgentModelConfig): Promise<RoutePlan> {
+async function planRoute(
+  message: string,
+  modelConfig: AgentModelConfig,
+  history: MessageRow[],
+): Promise<RoutePlan> {
   const router = createRouterAgent(modelConfig);
   const result = await router.generate({
-    prompt: `User message: ${message}`,
+    prompt: `Conversation history:
+${formatMessageHistory(history)}
+
+Current user message: ${message}`,
   });
 
   return result.output;
@@ -149,11 +170,20 @@ async function runSelectedAgents(
   route: RoutePlan,
   modelConfig: AgentModelConfig,
   agentRunId: string | null,
+  history: MessageRow[],
 ): Promise<AgentAnswer> {
   const answers: AgentAnswer[] = [];
 
   for (const agentName of route.selectedAgents) {
-    const answer = await runAgent(agentName, input, route, modelConfig, agentRunId, answers);
+    const answer = await runAgent(
+      agentName,
+      input,
+      route,
+      modelConfig,
+      agentRunId,
+      answers,
+      history,
+    );
     answers.push(answer);
 
     if (answer.handoffRequired || route.category === "blocked") {
@@ -171,6 +201,7 @@ async function runAgent(
   modelConfig: AgentModelConfig,
   agentRunId: string | null,
   previousAnswers: AgentAnswer[],
+  history: MessageRow[],
 ): Promise<AgentAnswer> {
   if (agentName === "guardrails") {
     const result = await createGuardrailsAgent(modelConfig).generate({
@@ -182,7 +213,10 @@ async function runAgent(
 
   if (agentName === "support") {
     const result = await createSupportAgent(modelConfig, { agentRunId }).generate({
-      prompt: `User message: ${input.message}
+      prompt: `Conversation history:
+${formatMessageHistory(history)}
+
+User message: ${input.message}
 Challenge customer id: ${input.challengeUserId}
 Authenticated Clerk user id: ${input.authenticatedUserId}
 Route plan: ${JSON.stringify(route)}
@@ -194,7 +228,10 @@ Prior agent answers: ${JSON.stringify(previousAnswers)}`,
 
   if (agentName === "knowledge") {
     const result = await createKnowledgeAgent(modelConfig).generate({
-      prompt: `User message: ${input.message}
+      prompt: `Conversation history:
+${formatMessageHistory(history)}
+
+User message: ${input.message}
 Route plan: ${JSON.stringify(route)}
 Prior agent answers: ${JSON.stringify(previousAnswers)}`,
     });
@@ -204,6 +241,15 @@ Prior agent answers: ${JSON.stringify(previousAnswers)}`,
 
   const unreachableAgent: never = agentName;
   throw new Error(`Unsupported agent selected by router: ${String(unreachableAgent)}`);
+}
+
+function formatMessageHistory(messages: MessageRow[]) {
+  if (messages.length === 0) return "(none)";
+
+  return messages
+    .slice(-12)
+    .map((message) => `${message.role}: ${message.content}`)
+    .join("\n");
 }
 
 function combineAgentAnswers(answers: AgentAnswer[]): AgentAnswer {

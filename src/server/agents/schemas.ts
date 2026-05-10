@@ -47,6 +47,7 @@ export type SwarmRequest = {
   challengeUserId: string;
   authenticatedUserId: string;
   requestId: string;
+  conversationId?: string | null;
 };
 
 export type SwarmResult = {

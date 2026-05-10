@@ -1,5 +1,5 @@
 import { useAuth, useUser } from "@clerk/react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuthedFetch } from "./useAuthedFetch";
 
 type RouteCategory = "knowledge" | "support" | "general_web" | "handoff" | "blocked";
@@ -37,6 +37,31 @@ type SwarmResponse = {
   handoffRequired: boolean;
 };
 
+type PersistedMessage = {
+  id: string;
+  conversationId: string;
+  role: "system" | "user" | "assistant" | "tool";
+  content: string;
+  metadata: unknown;
+  createdAt: string;
+};
+
+type ConversationSummary = {
+  id: string;
+  title: string | null;
+  status: "open" | "handoff" | "resolved" | "archived";
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ConversationsResponse = {
+  conversations: ConversationSummary[];
+};
+
+type MessagesResponse = {
+  messages: PersistedMessage[];
+};
+
 type Turn =
   | { kind: "user"; id: string; message: string; at: Date }
   | { kind: "assistant"; id: string; data: SwarmResponse; latencyMs: number; at: Date }
@@ -49,6 +74,8 @@ const promptStarters = [
   "Quando foi o último jogo do Palmeiras?",
 ];
 
+const activeConversationStorageKey = "swarm.activeConversationId";
+
 export function ChatConsole() {
   const { isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
@@ -57,8 +84,12 @@ export function ChatConsole() {
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
   const [challengeUserId, setChallengeUserId] = useState("client789");
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [loadingConversations, setLoadingConversations] = useState(true);
   const threadRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const restoreRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -71,6 +102,56 @@ export function ChatConsole() {
       behavior: "smooth",
     });
   }, [turns.length, pending]);
+
+  const refreshConversations = useCallback(async () => {
+    setLoadingConversations(true);
+    try {
+      const res = await authedFetch("/api/conversations");
+      if (!res.ok) return [];
+
+      const data = (await res.json()) as ConversationsResponse;
+      setConversations(data.conversations);
+      return data.conversations;
+    } finally {
+      setLoadingConversations(false);
+    }
+  }, [authedFetch]);
+
+  const loadConversation = useCallback(
+    async (nextConversationId: string) => {
+      const restoredTurns = await loadConversationTurns(authedFetch, nextConversationId);
+      setConversationId(nextConversationId);
+      setTurns(restoredTurns);
+      localStorage.setItem(activeConversationStorageKey, nextConversationId);
+    },
+    [authedFetch],
+  );
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+
+    restoreRef.current ??= (async () => {
+      const conversations = await refreshConversations();
+      const storedConversationId = localStorage.getItem(activeConversationStorageKey);
+      const storedConversationExists = conversations.some(
+        (conversation) => conversation.id === storedConversationId,
+      );
+      const nextConversationId = storedConversationExists
+        ? storedConversationId
+        : (conversations[0]?.id ?? null);
+
+      if (!nextConversationId) return;
+      await loadConversation(nextConversationId);
+    })().catch(() => {
+      localStorage.removeItem(activeConversationStorageKey);
+    });
+  }, [isLoaded, isSignedIn, loadConversation, refreshConversations]);
+
+  const selectConversation = async (nextConversationId: string) => {
+    if (nextConversationId === conversationId || pending) return;
+    await loadConversation(nextConversationId);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
 
   const submit = async (raw: string) => {
     const message = raw.trim();
@@ -86,7 +167,11 @@ export function ChatConsole() {
       const res = await authedFetch("/api/swarm", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ message, user_id: challengeUserId }),
+        body: JSON.stringify({
+          message,
+          user_id: challengeUserId,
+          conversation_id: conversationId,
+        }),
       });
 
       if (!res.ok) {
@@ -96,6 +181,10 @@ export function ChatConsole() {
 
       const data = (await res.json()) as SwarmResponse;
       const latencyMs = Math.round(performance.now() - startedAt);
+      if (data.conversationId) {
+        setConversationId(data.conversationId);
+        localStorage.setItem(activeConversationStorageKey, data.conversationId);
+      }
 
       setTurns((prev) => [
         ...prev,
@@ -107,6 +196,7 @@ export function ChatConsole() {
           at: new Date(),
         },
       ]);
+      void refreshConversations();
     } catch (error) {
       setTurns((prev) => [
         ...prev,
@@ -124,16 +214,25 @@ export function ChatConsole() {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)] min-h-[calc(100vh-4rem)]">
+    <div className="grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)] min-h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)] lg:min-h-0">
       <Sidebar
         user={user}
         challengeUserId={challengeUserId}
         onChallengeUserIdChange={setChallengeUserId}
-        onReset={() => setTurns([])}
+        onReset={() => {
+          setTurns([]);
+          setConversationId(null);
+          localStorage.removeItem(activeConversationStorageKey);
+        }}
         hasTurns={turns.length > 0}
+        conversations={conversations}
+        activeConversationId={conversationId}
+        loadingConversations={loadingConversations}
+        pending={pending}
+        onSelectConversation={(id) => void selectConversation(id)}
       />
 
-      <section className="flex flex-col relative">
+      <section className="flex flex-col min-h-0 relative">
         <div ref={threadRef} className="flex-1 overflow-y-auto px-4 sm:px-8 py-6">
           <div className="max-w-[44rem] mx-auto">
             {turns.length === 0 ? (
@@ -169,20 +268,30 @@ function Sidebar({
   onChallengeUserIdChange,
   onReset,
   hasTurns,
+  conversations,
+  activeConversationId,
+  loadingConversations,
+  pending,
+  onSelectConversation,
 }: {
   user: ReturnType<typeof useUser>["user"];
   challengeUserId: string;
   onChallengeUserIdChange: (value: string) => void;
   onReset: () => void;
   hasTurns: boolean;
+  conversations: ConversationSummary[];
+  activeConversationId: string | null;
+  loadingConversations: boolean;
+  pending: boolean;
+  onSelectConversation: (conversationId: string) => void;
 }) {
   return (
-    <aside className="hidden lg:flex flex-col border-r border-rule bg-ink-2/30">
+    <aside className="hidden lg:flex flex-col min-h-0 h-full border-r border-rule bg-ink-2/30">
       <div className="px-5 py-5 border-b border-rule">
         <button
           type="button"
           onClick={onReset}
-          disabled={!hasTurns}
+          disabled={pending || (!hasTurns && !activeConversationId)}
           className="btn-ghost w-full px-3 py-2 text-xs uppercase tracking-[0.18em] disabled:opacity-40 disabled:cursor-not-allowed"
         >
           + New chat
@@ -202,9 +311,54 @@ function Sidebar({
         </p>
       </div>
 
-      <div className="flex-1" />
+      <div className="flex-1 min-h-0 flex flex-col px-5 py-5 border-b border-rule">
+        <div className="flex items-center justify-between gap-3 shrink-0">
+          <div className="kicker">Threads</div>
+          <span className="font-mono text-[10px] text-paper-mute tabular-nums">
+            {conversations.length}
+          </span>
+        </div>
 
-      <div className="px-5 py-4 border-t border-rule">
+        <div className="flex-1 min-h-0 overflow-y-auto mt-3 -mx-1 px-1">
+          {loadingConversations ? (
+            <div className="space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-10 bg-ink-3/70" />
+              ))}
+            </div>
+          ) : conversations.length === 0 ? (
+            <p className="text-[12px] leading-relaxed text-paper-mute">
+              No persisted threads yet. Send a message to start one.
+            </p>
+          ) : (
+            <ul className="space-y-1">
+              {conversations.map((conversation) => (
+                <li key={conversation.id}>
+                  <button
+                    type="button"
+                    onClick={() => onSelectConversation(conversation.id)}
+                    disabled={pending}
+                    className={`w-full text-left px-2.5 py-2 border transition-colors disabled:cursor-not-allowed ${
+                      conversation.id === activeConversationId
+                        ? "border-ember/50 bg-ember/10 text-paper"
+                        : "border-transparent hover:border-rule hover:bg-ink-3/50 text-paper-dim"
+                    }`}
+                  >
+                    <div className="serif text-[13px] truncate">
+                      {conversation.title?.trim() || "Untitled thread"}
+                    </div>
+                    <div className="mt-1 font-mono text-[10px] text-paper-mute tabular-nums">
+                      {formatThreadDate(conversation.updatedAt)}
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div className="shrink-0 px-5 py-4 border-t border-rule">
         <div className="kicker">Signed in</div>
         <div className="text-sm mt-1 truncate text-paper-dim">
           {user?.primaryEmailAddress?.emailAddress ?? user?.id ?? "—"}
@@ -430,6 +584,116 @@ function PendingBubble() {
   );
 }
 
+async function loadConversationTurns(
+  authedFetch: ReturnType<typeof useAuthedFetch>,
+  conversationId: string,
+) {
+  const res = await authedFetch(`/api/conversations/${conversationId}/messages`);
+  if (!res.ok) return [];
+
+  const data = (await res.json()) as MessagesResponse;
+  return data.messages.flatMap(messageToTurn);
+}
+
+function messageToTurn(message: PersistedMessage): Turn[] {
+  if (message.role === "user") {
+    return [
+      {
+        kind: "user",
+        id: message.id,
+        message: message.content,
+        at: new Date(message.createdAt),
+      },
+    ];
+  }
+
+  if (message.role !== "assistant") return [];
+
+  const metadata = isRecord(message.metadata) ? message.metadata : {};
+  const route = isRoutePlan(metadata.route) ? metadata.route : fallbackRoutePlan;
+  const sources = Array.isArray(metadata.sources)
+    ? metadata.sources.filter((source): source is string => typeof source === "string")
+    : [];
+  const latencyMs = typeof metadata.latencyMs === "number" ? metadata.latencyMs : 0;
+  const agentRunId = typeof metadata.agentRunId === "string" ? metadata.agentRunId : null;
+  const handoffRequired =
+    typeof metadata.handoffRequired === "boolean" ? metadata.handoffRequired : false;
+
+  return [
+    {
+      kind: "assistant",
+      id: message.id,
+      at: new Date(message.createdAt),
+      latencyMs,
+      data: {
+        apiVersion: "v1",
+        requestId: "",
+        userId: "",
+        challengeUserId: "",
+        response: message.content,
+        route,
+        conversationId: message.conversationId,
+        agentRunId,
+        sources,
+        handoffRequired,
+      },
+    },
+  ];
+}
+
+const fallbackRoutePlan: RoutePlan = {
+  category: "knowledge",
+  confidence: 0,
+  rationale: "Restored from persisted conversation history.",
+  selectedAgents: ["knowledge"],
+  requiredTools: [],
+  handoffReason: null,
+};
+
+function isRoutePlan(value: unknown): value is RoutePlan {
+  if (!isRecord(value)) return false;
+  return (
+    isRouteCategory(value.category) &&
+    typeof value.confidence === "number" &&
+    typeof value.rationale === "string" &&
+    Array.isArray(value.selectedAgents) &&
+    value.selectedAgents.every(isAgentName) &&
+    Array.isArray(value.requiredTools) &&
+    value.requiredTools.every(isRouteToolName) &&
+    (typeof value.handoffReason === "string" || value.handoffReason === null)
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isRouteCategory(value: unknown): value is RouteCategory {
+  return (
+    value === "knowledge" ||
+    value === "support" ||
+    value === "general_web" ||
+    value === "handoff" ||
+    value === "blocked"
+  );
+}
+
+function isAgentName(value: unknown): value is AgentName {
+  return value === "guardrails" || value === "knowledge" || value === "support";
+}
+
+function isRouteToolName(value: unknown): value is RouteToolName {
+  return (
+    value === "retrieveKnowledge" ||
+    value === "webSearch" ||
+    value === "getCustomerProfile" ||
+    value === "getRecentTransactions" ||
+    value === "getOpenTickets" ||
+    value === "createSupportTicket" ||
+    value === "summarizeAccountIssue"
+  );
+}
+
 function Composer({
   inputRef,
   draft,
@@ -529,6 +793,19 @@ function agentLabel(a: AgentName) {
 function truncate(s: string, n: number) {
   if (s.length <= n) return s;
   return s.slice(0, n - 1).trimEnd() + "…";
+}
+
+function formatThreadDate(iso: string) {
+  try {
+    const d = new Date(iso);
+    const today = new Date();
+    if (d.toDateString() === today.toDateString()) {
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+    return d.toLocaleDateString([], { day: "2-digit", month: "short" });
+  } catch {
+    return "—";
+  }
 }
 
 function isUrl(s: string) {

@@ -1,6 +1,15 @@
 import { z } from "zod";
 import { runSwarm } from "../agents/orchestrator";
-import { getDashboardMetrics, listKnowledgeSourcesWithCounts, listRecentAgentRuns } from "../db";
+import {
+  getDashboardMetrics,
+  getConversationForUser,
+  listConversationMessages,
+  listConversationsForUser,
+  listKnowledgeSourcesWithCounts,
+  listRecentAgentRuns,
+  upsertUser,
+} from "../db";
+import type { JsonValue, MessageRow } from "../db/types";
 import { requireAdmin, requireAuth } from "../http/auth";
 import { createRequestContext, parseJsonBody } from "../http/request";
 import { apiError, jsonResponse, methodNotAllowed, notFound } from "../http/responses";
@@ -20,6 +29,7 @@ const chatBodySchema = z
 const swarmBodySchema = z.object({
   message: z.string().trim().min(1),
   user_id: z.string().trim().min(1),
+  conversation_id: z.string().trim().min(1).nullable().optional(),
 });
 
 type Handler = (req: Request) => Response | Promise<Response>;
@@ -109,6 +119,7 @@ export async function swarmRoute(req: Request) {
       challengeUserId: body.data.user_id,
       authenticatedUserId: auth.user.userId,
       requestId: context.requestId,
+      conversationId: body.data.conversation_id ?? null,
     });
 
     return jsonResponse({
@@ -142,12 +153,32 @@ export async function conversationsRoute(req: Request) {
     return auth.response;
   }
 
-  return jsonResponse({
-    apiVersion,
-    requestId: context.requestId,
-    userId: auth.user.userId,
-    conversations: [],
-  });
+  try {
+    const user = await upsertUser({ clerkUserId: auth.user.userId });
+    const conversations = user ? await listConversationsForUser(user.id) : [];
+
+    return jsonResponse({
+      apiVersion,
+      requestId: context.requestId,
+      userId: auth.user.userId,
+      conversations: conversations.map((conversation) => ({
+        id: conversation.id,
+        title: conversation.title,
+        channel: conversation.channel,
+        status: conversation.status,
+        createdAt: conversation.created_at,
+        updatedAt: conversation.updated_at,
+      })),
+    });
+  } catch (error) {
+    return apiError(
+      context.requestId,
+      503,
+      "CONFIGURATION_ERROR",
+      "Conversations are unavailable. Verify the database connection.",
+      error instanceof Error ? { message: error.message } : undefined,
+    );
+  }
 }
 
 export async function conversationMessagesRoute(req: Request) {
@@ -158,15 +189,48 @@ export async function conversationMessagesRoute(req: Request) {
     return auth.response;
   }
 
-  const url = new URL(req.url);
-  const conversationId = url.pathname.split("/").at(-2);
+  const conversationId = new URL(req.url).pathname.split("/").at(-2);
 
-  return jsonResponse({
-    apiVersion,
-    requestId: context.requestId,
-    conversationId,
-    messages: [],
-  });
+  if (!conversationId) {
+    return notFound(context.requestId);
+  }
+
+  try {
+    const user = await upsertUser({ clerkUserId: auth.user.userId });
+    const conversation = user ? await getConversationForUser(conversationId, user.id) : null;
+
+    if (!conversation) {
+      return notFound(context.requestId);
+    }
+
+    const messages = await listConversationMessages(conversation.id);
+
+    return jsonResponse({
+      apiVersion,
+      requestId: context.requestId,
+      conversationId: conversation.id,
+      messages: messages.map(serializeMessage),
+    });
+  } catch (error) {
+    return apiError(
+      context.requestId,
+      503,
+      "CONFIGURATION_ERROR",
+      "Conversation messages are unavailable. Verify the database connection.",
+      error instanceof Error ? { message: error.message } : undefined,
+    );
+  }
+}
+
+function serializeMessage(message: MessageRow) {
+  return {
+    id: message.id,
+    conversationId: message.conversation_id,
+    role: message.role,
+    content: message.content,
+    metadata: message.metadata as JsonValue,
+    createdAt: message.created_at,
+  };
 }
 
 export async function dashboardRoute(req: Request) {
