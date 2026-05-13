@@ -42,6 +42,10 @@ type FormState = {
   lastPayoutCents: string;
 };
 
+type ApiError = {
+  error: { message: string };
+};
+
 const problemTemplates: Array<{
   kind: ProblemKind;
   title: string;
@@ -86,17 +90,24 @@ export function SupportPage() {
   const [profile, setProfile] = useState<SupportProfile | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const loadProfile = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await authedFetch("/api/me/support-profile");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as ApiError | null;
+        throw new Error(body?.error?.message ?? `HTTP ${res.status}`);
+      }
       const data = (await res.json()) as { profile: SupportProfile | null };
       setProfile(data.profile);
       setForm(data.profile ? formFromProfile(data.profile) : emptyForm);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
     }
@@ -126,7 +137,10 @@ export function SupportPage() {
           lastPayoutCents: centsFromInput(form.lastPayoutCents),
         }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as ApiError | null;
+        throw new Error(body?.error?.message ?? `HTTP ${res.status}`);
+      }
       const data = (await res.json()) as { profile: SupportProfile | null };
       setProfile(data.profile);
       if (data.profile) setForm(formFromProfile(data.profile));
@@ -147,7 +161,10 @@ export function SupportPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ kind }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as ApiError | null;
+        throw new Error(body?.error?.message ?? `HTTP ${res.status}`);
+      }
       const data = (await res.json()) as { profile: SupportProfile | null };
       setProfile(data.profile);
       if (data.profile) setForm(formFromProfile(data.profile));
@@ -167,168 +184,191 @@ export function SupportPage() {
         lede="Edit the support data attached to your Clerk session and create demo problems for the Support Agent."
       />
 
-      <div className="mt-10 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px] gap-px bg-rule border border-rule">
-        <section className="bg-ink p-6 lg:p-8">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="kicker">Profile</div>
-              <h2 className="display-tight text-3xl mt-2">Support identity</h2>
-            </div>
-            {profile ? <StatusPill status={profile.accountStatus} /> : null}
-          </div>
+      {loadError ? <ErrorPanel message={loadError} /> : null}
 
-          {loading ? (
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <div key={i} className="h-20 bg-ink-3/70" />
-              ))}
+      {!loadError ? (
+        <div className="mt-10 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px] gap-px bg-rule border border-rule">
+          <section className="bg-ink p-6 lg:p-8">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="kicker">Profile</div>
+                <h2 className="display-tight text-3xl mt-2">Support identity</h2>
+              </div>
+              {profile ? <StatusPill status={profile.accountStatus} /> : null}
             </div>
-          ) : (
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Name">
-                <input
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="support-input"
-                />
-              </Field>
-              <Field label="Email">
-                <input
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="support-input"
-                />
-              </Field>
-              <Field label="Account status">
-                <select
-                  value={form.accountStatus}
-                  onChange={(e) =>
-                    setForm({ ...form, accountStatus: e.target.value as AccountStatus })
-                  }
-                  className="support-input"
-                >
-                  <option value="active">Active</option>
-                  <option value="review">Review</option>
-                  <option value="blocked">Blocked</option>
-                  <option value="closed">Closed</option>
-                </select>
-              </Field>
-              <Field label="Plan">
-                <input
-                  value={form.plan}
-                  onChange={(e) => setForm({ ...form, plan: e.target.value })}
-                  className="support-input"
-                />
-              </Field>
-              <Field label="Daily payout limit">
-                <input
-                  inputMode="decimal"
-                  value={form.dailyPayoutCents}
-                  onChange={(e) => setForm({ ...form, dailyPayoutCents: e.target.value })}
-                  className="support-input"
-                />
-              </Field>
-              <Field label="Monthly volume">
-                <input
-                  inputMode="decimal"
-                  value={form.monthlyVolumeCents}
-                  onChange={(e) => setForm({ ...form, monthlyVolumeCents: e.target.value })}
-                  className="support-input"
-                />
-              </Field>
-              <Field label="Available balance">
-                <input
-                  inputMode="decimal"
-                  value={form.availableBalanceCents}
-                  onChange={(e) => setForm({ ...form, availableBalanceCents: e.target.value })}
-                  className="support-input"
-                />
-              </Field>
-              <Field label="Pending balance">
-                <input
-                  inputMode="decimal"
-                  value={form.pendingBalanceCents}
-                  onChange={(e) => setForm({ ...form, pendingBalanceCents: e.target.value })}
-                  className="support-input"
-                />
-              </Field>
-              <Field label="Reserved balance">
-                <input
-                  inputMode="decimal"
-                  value={form.reservedBalanceCents}
-                  onChange={(e) => setForm({ ...form, reservedBalanceCents: e.target.value })}
-                  className="support-input"
-                />
-              </Field>
-              <Field label="Last payout">
-                <input
-                  inputMode="decimal"
-                  value={form.lastPayoutCents}
-                  onChange={(e) => setForm({ ...form, lastPayoutCents: e.target.value })}
-                  className="support-input"
-                />
-              </Field>
-            </div>
-          )}
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={save}
-              disabled={saving || loading}
-              className="btn-ember px-5 py-2.5 text-xs uppercase tracking-[0.15em] rounded"
-            >
-              {saving ? "Saving..." : "Save profile"}
-            </button>
-            {message ? (
-              <span className="font-mono text-[11px] text-paper-mute">{message}</span>
-            ) : null}
-          </div>
-
-          {profile?.supportFlags.length ? (
-            <div className="mt-8">
-              <div className="kicker">Current flags</div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {profile.supportFlags.map((flag) => (
-                  <span key={flag} className="pill pill-gold">
-                    {flag.replaceAll("_", " ")}
-                  </span>
+            {loading ? (
+              <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div key={i} className="h-20 bg-ink-3/70" />
                 ))}
               </div>
-            </div>
-          ) : null}
-        </section>
-
-        <aside className="bg-ink p-6 lg:p-8">
-          <div className="kicker">Problem factory</div>
-          <h2 className="display-tight text-3xl mt-2">Demo issues</h2>
-          <div className="mt-6 space-y-3">
-            {problemTemplates.map((template) => (
-              <div key={template.kind} className="border border-rule p-4 bg-ink-2/50">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="serif text-lg leading-tight">{template.title}</h3>
-                    <p className="text-[13px] leading-relaxed text-paper-dim mt-1">
-                      {template.description}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => createProblem(template.kind)}
-                    disabled={saving || loading}
-                    className="btn-ghost px-3 py-1.5 text-xs shrink-0"
+            ) : (
+              <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Field label="Name">
+                  <input
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    className="support-input"
+                  />
+                </Field>
+                <Field label="Email">
+                  <input
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    className="support-input"
+                  />
+                </Field>
+                <Field label="Account status">
+                  <select
+                    value={form.accountStatus}
+                    onChange={(e) =>
+                      setForm({ ...form, accountStatus: e.target.value as AccountStatus })
+                    }
+                    className="support-input"
                   >
-                    Create
-                  </button>
-                </div>
-                <p className="font-mono text-[11px] leading-relaxed text-paper-mute mt-3">
-                  {template.prompt}
-                </p>
+                    <option value="active">Active</option>
+                    <option value="review">Review</option>
+                    <option value="blocked">Blocked</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </Field>
+                <Field label="Plan">
+                  <input
+                    value={form.plan}
+                    onChange={(e) => setForm({ ...form, plan: e.target.value })}
+                    className="support-input"
+                  />
+                </Field>
+                <Field label="Daily payout limit">
+                  <input
+                    inputMode="decimal"
+                    value={form.dailyPayoutCents}
+                    onChange={(e) => setForm({ ...form, dailyPayoutCents: e.target.value })}
+                    className="support-input"
+                  />
+                </Field>
+                <Field label="Monthly volume">
+                  <input
+                    inputMode="decimal"
+                    value={form.monthlyVolumeCents}
+                    onChange={(e) => setForm({ ...form, monthlyVolumeCents: e.target.value })}
+                    className="support-input"
+                  />
+                </Field>
+                <Field label="Available balance">
+                  <input
+                    inputMode="decimal"
+                    value={form.availableBalanceCents}
+                    onChange={(e) => setForm({ ...form, availableBalanceCents: e.target.value })}
+                    className="support-input"
+                  />
+                </Field>
+                <Field label="Pending balance">
+                  <input
+                    inputMode="decimal"
+                    value={form.pendingBalanceCents}
+                    onChange={(e) => setForm({ ...form, pendingBalanceCents: e.target.value })}
+                    className="support-input"
+                  />
+                </Field>
+                <Field label="Reserved balance">
+                  <input
+                    inputMode="decimal"
+                    value={form.reservedBalanceCents}
+                    onChange={(e) => setForm({ ...form, reservedBalanceCents: e.target.value })}
+                    className="support-input"
+                  />
+                </Field>
+                <Field label="Last payout">
+                  <input
+                    inputMode="decimal"
+                    value={form.lastPayoutCents}
+                    onChange={(e) => setForm({ ...form, lastPayoutCents: e.target.value })}
+                    className="support-input"
+                  />
+                </Field>
               </div>
-            ))}
-          </div>
-        </aside>
+            )}
+
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={save}
+                disabled={saving || loading}
+                className="btn-ember px-5 py-2.5 text-xs uppercase tracking-[0.15em] rounded"
+              >
+                {saving ? "Saving..." : "Save profile"}
+              </button>
+              {message ? (
+                <span className="font-mono text-[11px] text-paper-mute">{message}</span>
+              ) : null}
+            </div>
+
+            {profile?.supportFlags.length ? (
+              <div className="mt-8">
+                <div className="kicker">Current flags</div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {profile.supportFlags.map((flag) => (
+                    <span key={flag} className="pill pill-gold">
+                      {flag.replaceAll("_", " ")}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </section>
+
+          <aside className="bg-ink p-6 lg:p-8">
+            <div className="kicker">Problem factory</div>
+            <h2 className="display-tight text-3xl mt-2">Demo issues</h2>
+            <div className="mt-6 space-y-3">
+              {problemTemplates.map((template) => (
+                <div key={template.kind} className="border border-rule p-4 bg-ink-2/50">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="serif text-lg leading-tight">{template.title}</h3>
+                      <p className="text-[13px] leading-relaxed text-paper-dim mt-1">
+                        {template.description}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => createProblem(template.kind)}
+                      disabled={saving || loading}
+                      className="btn-ghost px-3 py-1.5 text-xs shrink-0"
+                    >
+                      Create
+                    </button>
+                  </div>
+                  <p className="font-mono text-[11px] leading-relaxed text-paper-mute mt-3">
+                    {template.prompt}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </aside>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ErrorPanel({ message }: { message: string }) {
+  return (
+    <div className="mt-10 border border-ember/40 bg-ember/5 p-6 max-w-2xl">
+      <div
+        className="font-mono text-[11px] uppercase tracking-[0.18em]"
+        style={{ color: "var(--color-ember)" }}
+      >
+        Support profile unavailable
       </div>
+      <p className="serif text-base mt-2">{message}</p>
+      <p className="text-[12px] mt-3 text-paper-mute">
+        If this is your first local run, ensure Postgres is up and migrations are applied:{" "}
+        <code className="font-mono text-paper-dim">docker compose up -d postgres</code> then{" "}
+        <code className="font-mono text-paper-dim">bun run db:migrate</code>.
+      </p>
     </div>
   );
 }
