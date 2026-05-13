@@ -4,6 +4,7 @@ import { ApiPage } from "./ApiPage";
 import { ChatConsole } from "./ChatConsole";
 import { DashboardPage } from "./DashboardPage";
 import { KnowledgePage } from "./KnowledgePage";
+import { SupportPage } from "./SupportPage";
 import { hrefFor, navigate, type Route, useRoute } from "./useRoute";
 import "./index.css";
 
@@ -44,6 +45,7 @@ function SignedInShell({ route }: { route: Route }) {
       <Masthead route={route} />
       <main className="flex-1 flex flex-col">
         {route === "console" ? <ChatConsole /> : null}
+        {route === "support" ? <SupportPage /> : null}
         {route === "dashboard" ? <DashboardPage /> : null}
         {route === "knowledge" ? <KnowledgePage /> : null}
         {route === "api" ? <ApiPage /> : null}
@@ -75,6 +77,9 @@ function Masthead({ route }: { route: Route }) {
         <nav className="hidden md:flex items-center gap-7">
           <NavLink route="console" current={route}>
             Console
+          </NavLink>
+          <NavLink route="support" current={route}>
+            Support
           </NavLink>
           <NavLink route="dashboard" current={route}>
             Dashboard
@@ -278,8 +283,7 @@ function SignedOutHero({ isSignedIn }: { isSignedIn: boolean }) {
               <pre className="font-mono text-[11px] leading-relaxed text-paper-dim mt-4 overflow-x-auto whitespace-pre-wrap">
                 {`POST /api/swarm
 {
-  "message": "What are the fees of the Maquininha Smart?",
-  "user_id": "client789"
+  "message": "What are the fees of the Maquininha Smart?"
 }
 
 → route.category   = "knowledge"

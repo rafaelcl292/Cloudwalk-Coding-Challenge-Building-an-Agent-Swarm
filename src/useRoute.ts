@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 
-export type Route = "landing" | "console" | "dashboard" | "knowledge" | "api";
+export type Route = "landing" | "console" | "support" | "dashboard" | "knowledge" | "api";
 
-const validRoutes: Route[] = ["landing", "console", "dashboard", "knowledge", "api"];
+const validRoutes: Route[] = ["landing", "console", "support", "dashboard", "knowledge", "api"];
 
 function readRoute(): Route {
   if (typeof window === "undefined") return "landing";

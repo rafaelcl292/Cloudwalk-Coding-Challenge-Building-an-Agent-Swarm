@@ -23,7 +23,7 @@ export type AuthResult =
 let clerkClient: ClerkClient | null = null;
 const clerkClockSkewInMs = Number(process.env.CLERK_CLOCK_SKEW_MS ?? 30_000);
 
-function getClerkClient() {
+export function getClerkClient() {
   const secretKey = process.env.CLERK_SECRET_KEY;
 
   if (!secretKey) {
@@ -36,6 +36,21 @@ function getClerkClient() {
   });
 
   return clerkClient;
+}
+
+export async function getClerkUserProfile(userId: string) {
+  const client = getClerkClient();
+  if (!client) return null;
+
+  const user = await client.users.getUser(userId);
+  const primaryEmail = user.emailAddresses.find((email) => email.id === user.primaryEmailAddressId);
+  const fallbackEmail = user.emailAddresses[0];
+  const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
+
+  return {
+    name: fullName || user.username || null,
+    email: primaryEmail?.emailAddress ?? fallbackEmail?.emailAddress ?? null,
+  };
 }
 
 export async function requireAuth(req: Request, context: RequestContext): Promise<AuthResult> {

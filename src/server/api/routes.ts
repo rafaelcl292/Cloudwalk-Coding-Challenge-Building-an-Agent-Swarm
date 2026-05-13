@@ -3,14 +3,17 @@ import { runSwarm } from "../agents/orchestrator";
 import {
   getDashboardMetrics,
   getConversationForUser,
+  applySupportProblemForUser,
+  ensureCustomerProfileForUser,
   listConversationMessages,
   listConversationsForUser,
   listKnowledgeSourcesWithCounts,
   listRecentAgentRuns,
+  updateCustomerProfileForUser,
   upsertUser,
 } from "../db";
 import type { JsonValue, MessageRow } from "../db/types";
-import { requireAdmin, requireAuth } from "../http/auth";
+import { getClerkUserProfile, requireAdmin, requireAuth } from "../http/auth";
 import { createRequestContext, parseJsonBody } from "../http/request";
 import { apiError, jsonResponse, methodNotAllowed, notFound } from "../http/responses";
 import { infinitePaySourceUrls } from "../rag/sources";
@@ -28,8 +31,27 @@ const chatBodySchema = z
 
 const swarmBodySchema = z.object({
   message: z.string().trim().min(1),
-  user_id: z.string().trim().min(1),
+  user_id: z.string().trim().min(1).optional(),
   conversation_id: z.string().trim().min(1).nullable().optional(),
+});
+
+const supportProfileBodySchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  email: z.string().trim().email().nullable().optional(),
+  accountStatus: z.enum(["active", "blocked", "review", "closed"]).optional(),
+  plan: z.string().trim().min(1).max(80).optional(),
+  dailyPayoutCents: z.number().int().min(0).max(100_000_000).optional(),
+  monthlyVolumeCents: z.number().int().min(0).max(1_000_000_000).optional(),
+});
+
+const supportProblemBodySchema = z.object({
+  kind: z.enum([
+    "blocked_account",
+    "password_reset",
+    "payout_failed",
+    "payment_declined",
+    "kyc_review",
+  ]),
 });
 
 type Handler = (req: Request) => Response | Promise<Response>;
@@ -114,9 +136,20 @@ export async function swarmRoute(req: Request) {
   }
 
   try {
+    const user = await upsertUser({ clerkUserId: auth.user.userId });
+    const clerkProfile = await getClerkUserProfile(auth.user.userId);
+    if (user) {
+      await ensureCustomerProfileForUser({
+        userId: user.id,
+        clerkUserId: auth.user.userId,
+        name: clerkProfile?.name,
+        email: clerkProfile?.email,
+      });
+    }
+
     const result = await runSwarm({
       message: body.data.message,
-      challengeUserId: body.data.user_id,
+      challengeUserId: body.data.user_id ?? auth.user.userId,
       authenticatedUserId: auth.user.userId,
       requestId: context.requestId,
       conversationId: body.data.conversation_id ?? null,
@@ -126,7 +159,6 @@ export async function swarmRoute(req: Request) {
       apiVersion,
       requestId: context.requestId,
       userId: auth.user.userId,
-      challengeUserId: body.data.user_id,
       response: result.response,
       route: result.route,
       conversationId: result.conversationId,
@@ -140,6 +172,133 @@ export async function swarmRoute(req: Request) {
       500,
       "INTERNAL_SERVER_ERROR",
       "Swarm orchestration failed.",
+      error instanceof Error ? { message: error.message } : undefined,
+    );
+  }
+}
+
+export async function supportProfileRoute(req: Request) {
+  const context = createRequestContext(req);
+  const auth = await requireAuth(req, context);
+
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  try {
+    const user = await upsertUser({ clerkUserId: auth.user.userId });
+    const clerkProfile = await getClerkUserProfile(auth.user.userId);
+    const profile = user
+      ? await ensureCustomerProfileForUser({
+          userId: user.id,
+          clerkUserId: auth.user.userId,
+          name: clerkProfile?.name,
+          email: clerkProfile?.email,
+        })
+      : null;
+
+    return jsonResponse({
+      apiVersion,
+      requestId: context.requestId,
+      profile: profile ? serializeCustomerProfile(profile) : null,
+    });
+  } catch (error) {
+    return apiError(
+      context.requestId,
+      503,
+      "CONFIGURATION_ERROR",
+      "Support profile is unavailable. Verify the database connection.",
+      error instanceof Error ? { message: error.message } : undefined,
+    );
+  }
+}
+
+export async function updateSupportProfileRoute(req: Request) {
+  const context = createRequestContext(req);
+  const auth = await requireAuth(req, context);
+
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  const body = await parseJsonBody(req, context, supportProfileBodySchema);
+
+  if (!body.ok) {
+    return body.response;
+  }
+
+  try {
+    const user = await upsertUser({ clerkUserId: auth.user.userId });
+    if (!user) {
+      return apiError(context.requestId, 503, "CONFIGURATION_ERROR", "User store unavailable.");
+    }
+
+    const clerkProfile = await getClerkUserProfile(auth.user.userId);
+    await ensureCustomerProfileForUser({
+      userId: user.id,
+      clerkUserId: auth.user.userId,
+      name: clerkProfile?.name,
+      email: clerkProfile?.email,
+    });
+    const profile = await updateCustomerProfileForUser(user.id, body.data);
+
+    return jsonResponse({
+      apiVersion,
+      requestId: context.requestId,
+      profile: profile ? serializeCustomerProfile(profile) : null,
+    });
+  } catch (error) {
+    return apiError(
+      context.requestId,
+      503,
+      "CONFIGURATION_ERROR",
+      "Support profile could not be updated.",
+      error instanceof Error ? { message: error.message } : undefined,
+    );
+  }
+}
+
+export async function createSupportProblemRoute(req: Request) {
+  const context = createRequestContext(req);
+  const auth = await requireAuth(req, context);
+
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  const body = await parseJsonBody(req, context, supportProblemBodySchema);
+
+  if (!body.ok) {
+    return body.response;
+  }
+
+  try {
+    const user = await upsertUser({ clerkUserId: auth.user.userId });
+    if (!user) {
+      return apiError(context.requestId, 503, "CONFIGURATION_ERROR", "User store unavailable.");
+    }
+
+    const clerkProfile = await getClerkUserProfile(auth.user.userId);
+    await ensureCustomerProfileForUser({
+      userId: user.id,
+      clerkUserId: auth.user.userId,
+      name: clerkProfile?.name,
+      email: clerkProfile?.email,
+    });
+    const result = await applySupportProblemForUser(user.id, body.data.kind);
+
+    return jsonResponse({
+      apiVersion,
+      requestId: context.requestId,
+      profile: result?.profile ? serializeCustomerProfile(result.profile) : null,
+      ticket: result?.ticket ? serializeSupportTicket(result.ticket) : null,
+    });
+  } catch (error) {
+    return apiError(
+      context.requestId,
+      503,
+      "CONFIGURATION_ERROR",
+      "Support problem could not be created.",
       error instanceof Error ? { message: error.message } : undefined,
     );
   }
@@ -230,6 +389,42 @@ function serializeMessage(message: MessageRow) {
     content: message.content,
     metadata: message.metadata as JsonValue,
     createdAt: message.created_at,
+  };
+}
+
+function serializeCustomerProfile(profile: {
+  name: string;
+  email: string | null;
+  account_status: string;
+  plan: string;
+  limits: JsonValue;
+  support_flags: string[];
+  updated_at: Date;
+}) {
+  return {
+    name: profile.name,
+    email: profile.email,
+    accountStatus: profile.account_status,
+    plan: profile.plan,
+    limits: profile.limits,
+    supportFlags: profile.support_flags,
+    updatedAt: profile.updated_at,
+  };
+}
+
+function serializeSupportTicket(ticket: {
+  subject: string;
+  status: string;
+  priority: string;
+  summary: string | null;
+  created_at: Date;
+}) {
+  return {
+    subject: ticket.subject,
+    status: ticket.status,
+    priority: ticket.priority,
+    summary: ticket.summary,
+    createdAt: ticket.created_at,
   };
 }
 

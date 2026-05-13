@@ -31,11 +31,13 @@ export async function runSwarm(
   const startedAt = performance.now();
   let conversationId: string | null = null;
   let agentRunId: string | null = null;
+  let supportUserId: string | null = null;
   let history: MessageRow[] = [];
 
   try {
     if (persist) {
       const user = await upsertUser({ clerkUserId: input.authenticatedUserId });
+      supportUserId = user?.id ?? null;
       const conversation =
         user && input.conversationId
           ? await getConversationForUser(input.conversationId, user.id)
@@ -91,7 +93,14 @@ export async function runSwarm(
       }
     }
 
-    const answer = await runSelectedAgents(input, route, modelConfig, agentRunId, history);
+    const answer = await runSelectedAgents(
+      input,
+      route,
+      modelConfig,
+      agentRunId,
+      history,
+      supportUserId,
+    );
     const latencyMs = Math.round(performance.now() - startedAt);
 
     if (persist && conversationId) {
@@ -171,6 +180,7 @@ async function runSelectedAgents(
   modelConfig: AgentModelConfig,
   agentRunId: string | null,
   history: MessageRow[],
+  supportUserId: string | null,
 ): Promise<AgentAnswer> {
   const answers: AgentAnswer[] = [];
 
@@ -183,6 +193,7 @@ async function runSelectedAgents(
       agentRunId,
       answers,
       history,
+      supportUserId,
     );
     answers.push(answer);
 
@@ -202,6 +213,7 @@ async function runAgent(
   agentRunId: string | null,
   previousAnswers: AgentAnswer[],
   history: MessageRow[],
+  supportUserId: string | null,
 ): Promise<AgentAnswer> {
   if (agentName === "guardrails") {
     const result = await createGuardrailsAgent(modelConfig).generate({
@@ -212,13 +224,14 @@ async function runAgent(
   }
 
   if (agentName === "support") {
-    const result = await createSupportAgent(modelConfig, { agentRunId }).generate({
+    const result = await createSupportAgent(modelConfig, {
+      agentRunId,
+      userId: supportUserId,
+    }).generate({
       prompt: `Conversation history:
 ${formatMessageHistory(history)}
 
 User message: ${input.message}
-Challenge customer id: ${input.challengeUserId}
-Authenticated Clerk user id: ${input.authenticatedUserId}
 Route plan: ${JSON.stringify(route)}
 Prior agent answers: ${JSON.stringify(previousAnswers)}`,
     });

@@ -28,7 +28,6 @@ type SwarmResponse = {
   apiVersion: string;
   requestId: string;
   userId: string;
-  challengeUserId: string;
   response: string;
   route: RoutePlan;
   conversationId: string | null;
@@ -83,7 +82,6 @@ export function ChatConsole() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
-  const [challengeUserId, setChallengeUserId] = useState("client789");
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loadingConversations, setLoadingConversations] = useState(true);
@@ -169,7 +167,6 @@ export function ChatConsole() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           message,
-          user_id: challengeUserId,
           conversation_id: conversationId,
         }),
       });
@@ -217,8 +214,6 @@ export function ChatConsole() {
     <div className="grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)] min-h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)] lg:min-h-0">
       <Sidebar
         user={user}
-        challengeUserId={challengeUserId}
-        onChallengeUserIdChange={setChallengeUserId}
         onReset={() => {
           setTurns([]);
           setConversationId(null);
@@ -264,8 +259,6 @@ export function ChatConsole() {
 
 function Sidebar({
   user,
-  challengeUserId,
-  onChallengeUserIdChange,
   onReset,
   hasTurns,
   conversations,
@@ -275,8 +268,6 @@ function Sidebar({
   onSelectConversation,
 }: {
   user: ReturnType<typeof useUser>["user"];
-  challengeUserId: string;
-  onChallengeUserIdChange: (value: string) => void;
   onReset: () => void;
   hasTurns: boolean;
   conversations: ConversationSummary[];
@@ -296,19 +287,6 @@ function Sidebar({
         >
           + New chat
         </button>
-      </div>
-
-      <div className="px-5 py-5 border-b border-rule">
-        <label className="kicker block">Customer ID</label>
-        <input
-          value={challengeUserId}
-          onChange={(e) => onChallengeUserIdChange(e.target.value)}
-          className="mt-2 w-full bg-ink-3 border border-rule px-3 py-2 font-mono text-xs text-paper focus:outline-none focus:border-paper-dim"
-          spellCheck={false}
-        />
-        <p className="mt-2 text-[11px] leading-relaxed text-paper-mute">
-          Sent as <code className="font-mono">user_id</code> for support routing.
-        </p>
       </div>
 
       <div className="flex-1 min-h-0 flex flex-col px-5 py-5 border-b border-rule">
@@ -629,7 +607,6 @@ function messageToTurn(message: PersistedMessage): Turn[] {
         apiVersion: "v1",
         requestId: "",
         userId: "",
-        challengeUserId: "",
         response: message.content,
         route,
         conversationId: message.conversationId,

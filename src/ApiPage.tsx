@@ -21,11 +21,10 @@ const endpoints: Endpoint[] = [
     path: "/api/swarm",
     label: "Swarm",
     description:
-      "The challenge-compatible JSON endpoint. Routes the message through the swarm and returns the reply with route plan, sources, and handoff.",
+      "Routes the message through the swarm and returns the reply with route plan, sources, and handoff. Support tools infer the customer from your Clerk session.",
     defaultBody: JSON.stringify(
       {
         message: "What are the fees of the Maquininha Smart?",
-        user_id: "client789",
       },
       null,
       2,

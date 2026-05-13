@@ -5,11 +5,14 @@ import {
   chatRoute,
   conversationMessagesRoute,
   conversationsRoute,
+  createSupportProblemRoute,
   dashboardRoute,
   healthRoute,
   ingestRoute,
   knowledgeSourcesRoute,
+  supportProfileRoute,
   swarmRoute,
+  updateSupportProfileRoute,
   unknownApiRoute,
 } from "./server/api/routes";
 
@@ -30,6 +33,18 @@ const server = serve({
 
     "/api/conversations/:id/messages": apiRoute({ GET: conversationMessagesRoute }),
     "/api/v1/conversations/:id/messages": apiRoute({ GET: conversationMessagesRoute }),
+
+    "/api/me/support-profile": apiRoute({
+      GET: supportProfileRoute,
+      PATCH: updateSupportProfileRoute,
+    }),
+    "/api/v1/me/support-profile": apiRoute({
+      GET: supportProfileRoute,
+      PATCH: updateSupportProfileRoute,
+    }),
+
+    "/api/me/support-problems": apiRoute({ POST: createSupportProblemRoute }),
+    "/api/v1/me/support-problems": apiRoute({ POST: createSupportProblemRoute }),
 
     "/api/dashboard": apiRoute({ GET: dashboardRoute }),
     "/api/v1/dashboard": apiRoute({ GET: dashboardRoute }),
