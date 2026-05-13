@@ -9,6 +9,7 @@ import {
   listConversationsForUser,
   listKnowledgeSourcesWithCounts,
   listRecentAgentRuns,
+  normalizeSupportLimits,
   updateCustomerProfileForUser,
   upsertUser,
 } from "../db";
@@ -42,6 +43,10 @@ const supportProfileBodySchema = z.object({
   plan: z.string().trim().min(1).max(80).optional(),
   dailyPayoutCents: z.number().int().min(0).max(100_000_000).optional(),
   monthlyVolumeCents: z.number().int().min(0).max(1_000_000_000).optional(),
+  availableBalanceCents: z.number().int().min(0).max(1_000_000_000).optional(),
+  pendingBalanceCents: z.number().int().min(0).max(1_000_000_000).optional(),
+  reservedBalanceCents: z.number().int().min(0).max(1_000_000_000).optional(),
+  lastPayoutCents: z.number().int().min(0).max(1_000_000_000).optional(),
 });
 
 const supportProblemBodySchema = z.object({
@@ -406,7 +411,7 @@ function serializeCustomerProfile(profile: {
     email: profile.email,
     accountStatus: profile.account_status,
     plan: profile.plan,
-    limits: profile.limits,
+    limits: normalizeSupportLimits(profile.limits),
     supportFlags: profile.support_flags,
     updatedAt: profile.updated_at,
   };

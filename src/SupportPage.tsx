@@ -15,12 +15,18 @@ type SupportProfile = {
   email: string | null;
   accountStatus: AccountStatus;
   plan: string;
-  limits: {
-    dailyPayoutCents?: number;
-    monthlyVolumeCents?: number;
-  };
+  limits: SupportLimits | string | null;
   supportFlags: string[];
   updatedAt: string;
+};
+
+type SupportLimits = {
+  dailyPayoutCents?: number;
+  monthlyVolumeCents?: number;
+  availableBalanceCents?: number;
+  pendingBalanceCents?: number;
+  reservedBalanceCents?: number;
+  lastPayoutCents?: number;
 };
 
 type FormState = {
@@ -30,6 +36,10 @@ type FormState = {
   plan: string;
   dailyPayoutCents: string;
   monthlyVolumeCents: string;
+  availableBalanceCents: string;
+  pendingBalanceCents: string;
+  reservedBalanceCents: string;
+  lastPayoutCents: string;
 };
 
 const problemTemplates: Array<{
@@ -109,6 +119,10 @@ export function SupportPage() {
           plan: form.plan,
           dailyPayoutCents: centsFromInput(form.dailyPayoutCents),
           monthlyVolumeCents: centsFromInput(form.monthlyVolumeCents),
+          availableBalanceCents: centsFromInput(form.availableBalanceCents),
+          pendingBalanceCents: centsFromInput(form.pendingBalanceCents),
+          reservedBalanceCents: centsFromInput(form.reservedBalanceCents),
+          lastPayoutCents: centsFromInput(form.lastPayoutCents),
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -164,7 +178,7 @@ export function SupportPage() {
 
           {loading ? (
             <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-              {Array.from({ length: 6 }).map((_, i) => (
+              {Array.from({ length: 10 }).map((_, i) => (
                 <div key={i} className="h-20 bg-ink-3/70" />
               ))}
             </div>
@@ -218,6 +232,38 @@ export function SupportPage() {
                   inputMode="decimal"
                   value={form.monthlyVolumeCents}
                   onChange={(e) => setForm({ ...form, monthlyVolumeCents: e.target.value })}
+                  className="support-input"
+                />
+              </Field>
+              <Field label="Available balance">
+                <input
+                  inputMode="decimal"
+                  value={form.availableBalanceCents}
+                  onChange={(e) => setForm({ ...form, availableBalanceCents: e.target.value })}
+                  className="support-input"
+                />
+              </Field>
+              <Field label="Pending balance">
+                <input
+                  inputMode="decimal"
+                  value={form.pendingBalanceCents}
+                  onChange={(e) => setForm({ ...form, pendingBalanceCents: e.target.value })}
+                  className="support-input"
+                />
+              </Field>
+              <Field label="Reserved balance">
+                <input
+                  inputMode="decimal"
+                  value={form.reservedBalanceCents}
+                  onChange={(e) => setForm({ ...form, reservedBalanceCents: e.target.value })}
+                  className="support-input"
+                />
+              </Field>
+              <Field label="Last payout">
+                <input
+                  inputMode="decimal"
+                  value={form.lastPayoutCents}
+                  onChange={(e) => setForm({ ...form, lastPayoutCents: e.target.value })}
                   className="support-input"
                 />
               </Field>
@@ -302,14 +348,37 @@ function StatusPill({ status }: { status: AccountStatus }) {
 }
 
 function formFromProfile(profile: SupportProfile): FormState {
+  const limits = readLimits(profile.limits);
+
   return {
     name: profile.name,
     email: profile.email ?? "",
     accountStatus: profile.accountStatus,
     plan: profile.plan,
-    dailyPayoutCents: moneyFromCents(profile.limits.dailyPayoutCents ?? 0),
-    monthlyVolumeCents: moneyFromCents(profile.limits.monthlyVolumeCents ?? 0),
+    dailyPayoutCents: moneyFromCents(limits.dailyPayoutCents ?? 0),
+    monthlyVolumeCents: moneyFromCents(limits.monthlyVolumeCents ?? 0),
+    availableBalanceCents: moneyFromCents(limits.availableBalanceCents ?? 0),
+    pendingBalanceCents: moneyFromCents(limits.pendingBalanceCents ?? 0),
+    reservedBalanceCents: moneyFromCents(limits.reservedBalanceCents ?? 0),
+    lastPayoutCents: moneyFromCents(limits.lastPayoutCents ?? 0),
   };
+}
+
+function readLimits(value: SupportProfile["limits"]): SupportLimits {
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return isPlainRecord(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  return isPlainRecord(value) ? value : {};
+}
+
+function isPlainRecord(value: unknown): value is SupportLimits {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function centsFromInput(value: string) {
@@ -334,4 +403,8 @@ const emptyForm: FormState = {
   plan: "InfinitePay Pro",
   dailyPayoutCents: "1.500,00",
   monthlyVolumeCents: "25.000,00",
+  availableBalanceCents: "3.250,00",
+  pendingBalanceCents: "890,00",
+  reservedBalanceCents: "120,00",
+  lastPayoutCents: "1.400,00",
 };

@@ -3,6 +3,7 @@ import type {
   AccountStatus,
   CustomerProfileRow,
   CustomerTransactionRow,
+  JsonValue,
   SupportTicketRow,
   TicketPriority,
 } from "./types";
@@ -28,11 +29,10 @@ export type UpdateCustomerProfileInput = {
   plan?: string;
   dailyPayoutCents?: number;
   monthlyVolumeCents?: number;
-};
-
-const defaultLimits = {
-  monthlyVolumeCents: 2_500_000,
-  dailyPayoutCents: 150_000,
+  availableBalanceCents?: number;
+  pendingBalanceCents?: number;
+  reservedBalanceCents?: number;
+  lastPayoutCents?: number;
 };
 
 export async function getCustomerProfileByExternalId(
@@ -77,16 +77,23 @@ export async function ensureCustomerProfileForUser(
     const clerkEmail = input.email?.trim();
     const shouldUseClerkName = clerkName && existing.name === "Demo Merchant";
     const shouldUseClerkEmail = clerkEmail && !existing.email;
+    const existingLimits = readSupportLimits(existing.limits);
+    const shouldBackfillLimits = !hasAllSupportLimitFields(existing.limits);
 
-    if (!shouldUseClerkName && !shouldUseClerkEmail) {
+    if (!shouldUseClerkName && !shouldUseClerkEmail && !shouldBackfillLimits) {
       return existing;
     }
+
+    const limits = shouldBackfillLimits
+      ? { ...randomInitialAccountValues(), ...existingLimits }
+      : existingLimits;
 
     const rows = await database<CustomerProfileRow[]>`
       UPDATE customer_profiles
       SET
         name = ${shouldUseClerkName ? clerkName : existing.name},
-        email = ${shouldUseClerkEmail ? clerkEmail : existing.email}
+        email = ${shouldUseClerkEmail ? clerkEmail : existing.email},
+        limits = ${JSON.stringify(limits)}::jsonb
       WHERE id = ${existing.id}
       RETURNING *
     `;
@@ -94,6 +101,7 @@ export async function ensureCustomerProfileForUser(
     return rows[0] ?? existing;
   }
 
+  const initialAccountValues = randomInitialAccountValues();
   const rows = await database<CustomerProfileRow[]>`
     INSERT INTO customer_profiles (
       user_id,
@@ -112,7 +120,7 @@ export async function ensureCustomerProfileForUser(
       ${input.email?.trim() || null},
       'active',
       'InfinitePay Pro',
-      ${JSON.stringify(defaultLimits)}::jsonb,
+      ${JSON.stringify(initialAccountValues)}::jsonb,
       ARRAY[]::text[]
     )
     RETURNING *
@@ -129,13 +137,23 @@ export async function updateCustomerProfileForUser(
   const existing = await getCustomerProfileByUserId(userId, database);
   if (!existing) return null;
 
-  const existingLimits = isPlainRecord(existing.limits) ? existing.limits : {};
+  const existingLimits = readSupportLimits(existing.limits);
   const nextLimits = {
     ...existingLimits,
     ...(input.dailyPayoutCents === undefined ? {} : { dailyPayoutCents: input.dailyPayoutCents }),
     ...(input.monthlyVolumeCents === undefined
       ? {}
       : { monthlyVolumeCents: input.monthlyVolumeCents }),
+    ...(input.availableBalanceCents === undefined
+      ? {}
+      : { availableBalanceCents: input.availableBalanceCents }),
+    ...(input.pendingBalanceCents === undefined
+      ? {}
+      : { pendingBalanceCents: input.pendingBalanceCents }),
+    ...(input.reservedBalanceCents === undefined
+      ? {}
+      : { reservedBalanceCents: input.reservedBalanceCents }),
+    ...(input.lastPayoutCents === undefined ? {} : { lastPayoutCents: input.lastPayoutCents }),
   };
 
   const rows = await database<CustomerProfileRow[]>`
@@ -151,6 +169,10 @@ export async function updateCustomerProfileForUser(
   `;
 
   return rows[0] ?? null;
+}
+
+export function normalizeSupportLimits(value: JsonValue) {
+  return readSupportLimits(value);
 }
 
 export async function applySupportProblemForUser(
@@ -319,4 +341,79 @@ function supportProblemConfig(kind: SupportProblemKind) {
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readSupportLimits(value: JsonValue) {
+  const parsed = typeof value === "string" ? parseJsonObject(value) : value;
+  const record = isPlainRecord(parsed) ? parsed : {};
+
+  return {
+    monthlyVolumeCents: readCents(record.monthlyVolumeCents),
+    dailyPayoutCents: readCents(record.dailyPayoutCents),
+    availableBalanceCents: readCents(record.availableBalanceCents),
+    pendingBalanceCents: readCents(record.pendingBalanceCents),
+    reservedBalanceCents: readCents(record.reservedBalanceCents),
+    lastPayoutCents: readCents(record.lastPayoutCents),
+    currency: typeof record.currency === "string" ? record.currency : "BRL",
+  };
+}
+
+function hasAllSupportLimitFields(value: JsonValue) {
+  const parsed = typeof value === "string" ? parseJsonObject(value) : value;
+  const record = isPlainRecord(parsed) ? parsed : {};
+
+  return (
+    "monthlyVolumeCents" in record &&
+    "dailyPayoutCents" in record &&
+    "availableBalanceCents" in record &&
+    "pendingBalanceCents" in record &&
+    "reservedBalanceCents" in record &&
+    "lastPayoutCents" in record
+  );
+}
+
+function parseJsonObject(value: string) {
+  try {
+    const parsed = JSON.parse(value);
+    return isPlainRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function readCents(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(0, Math.round(value));
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
+  }
+
+  return 0;
+}
+
+function randomInitialAccountValues() {
+  const monthlyVolumeCents = randomCents(800_000, 8_000_000, 10_000);
+  const dailyPayoutCents = randomCents(80_000, 600_000, 5_000);
+  const availableBalanceCents = randomCents(25_000, 900_000, 1_000);
+  const pendingBalanceCents = randomCents(0, 350_000, 1_000);
+  const reservedBalanceCents = randomCents(0, 120_000, 1_000);
+  const lastPayoutCents = randomCents(0, 450_000, 1_000);
+
+  return {
+    monthlyVolumeCents,
+    dailyPayoutCents,
+    availableBalanceCents,
+    pendingBalanceCents,
+    reservedBalanceCents,
+    lastPayoutCents,
+    currency: "BRL",
+  };
+}
+
+function randomCents(min: number, max: number, step: number) {
+  const slots = Math.floor((max - min) / step);
+  return min + Math.floor(Math.random() * (slots + 1)) * step;
 }

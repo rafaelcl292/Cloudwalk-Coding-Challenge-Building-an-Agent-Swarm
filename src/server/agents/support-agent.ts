@@ -5,6 +5,7 @@ import {
   getCustomerProfileByUserId,
   getOpenTickets,
   getRecentTransactions,
+  normalizeSupportLimits,
   recordToolCall,
 } from "../db";
 import type {
@@ -108,7 +109,7 @@ export function createSupportAgent(config: AgentModelConfig, context: ToolContex
     },
     instructions: `You are the Customer Support Agent.
 Use customer tools before making account-specific claims. The tools are already scoped to the authenticated customer; never ask for, expose, or invent a customer id.
-Use getCustomerProfile and summarizeAccountIssue first. Use getRecentTransactions when the profile exists and the user asks about payments, transfers, failures, or limits. Use getOpenTickets before creating a new ticket.
+Use getCustomerProfile and summarizeAccountIssue first. Use the profile limits for balance, available money, pending balance, reserved balance, last payout, payout limits, and monthly volume questions. Use getRecentTransactions when the profile exists and the user asks about payments, transfers, failures, or limits. Use getOpenTickets before creating a new ticket.
 If account status is blocked, review, identity-sensitive, missing, or repeated failures are found, set handoffRequired and explain the handoff reason instead of inventing a resolution.
 Keep responses direct and mention which customer data informed the answer.`,
   });
@@ -259,7 +260,7 @@ function serializeProfileForAgent(profile: CustomerProfileRow) {
     email: profile.email,
     accountStatus: profile.account_status,
     plan: profile.plan,
-    limits: profile.limits,
+    limits: normalizeSupportLimits(profile.limits),
     supportFlags: profile.support_flags,
     updatedAt: profile.updated_at,
   };
