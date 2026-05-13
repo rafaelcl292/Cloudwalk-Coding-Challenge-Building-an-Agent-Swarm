@@ -50,33 +50,34 @@ const problemTemplates: Array<{
 }> = [
   {
     kind: "blocked_account",
-    title: "Conta bloqueada",
-    description: "Marca a conta como bloqueada, cria falha de saque e ticket urgente.",
-    prompt: "Minha conta foi bloqueada e eu preciso fazer uma transferência agora.",
+    title: "Blocked account",
+    description:
+      "Marks the account as blocked, creates a failed payout, and opens an urgent ticket.",
+    prompt: "My account was blocked and I need to make a transfer now.",
   },
   {
     kind: "password_reset",
-    title: "Reset de senha",
-    description: "Cria um ticket de recuperação de acesso para o agente orientar o usuário.",
-    prompt: "Não consigo entrar na minha conta. Pode me ajudar a resetar minha senha?",
+    title: "Password reset",
+    description: "Creates an account recovery ticket so the agent can guide the user.",
+    prompt: "I cannot sign in to my account. Can you help me reset my password?",
   },
   {
     kind: "payout_failed",
-    title: "Transferência falhou",
-    description: "Coloca a conta em revisão e registra uma falha recente de payout.",
-    prompt: "Por que minha transferência falhou hoje?",
+    title: "Failed payout",
+    description: "Moves the account into review and records a recent payout failure.",
+    prompt: "Why did my payout fail today?",
   },
   {
     kind: "payment_declined",
-    title: "Pagamento recusado",
-    description: "Registra uma transação recusada para o agente explicar os próximos passos.",
-    prompt: "Meu cliente tentou pagar no cartão e foi recusado. O que aconteceu?",
+    title: "Declined payment",
+    description: "Records a declined transaction so the agent can explain next steps.",
+    prompt: "My customer tried to pay by card and it was declined. What happened?",
   },
   {
     kind: "kyc_review",
-    title: "KYC pendente",
-    description: "Simula revisão de identidade, forçando handoff humano quando necessário.",
-    prompt: "Minha verificação de identidade está pendente. Posso continuar vendendo?",
+    title: "Pending KYC",
+    description: "Simulates an identity review and triggers human handoff when needed.",
+    prompt: "My identity verification is pending. Can I keep selling?",
   },
 ];
 
@@ -129,9 +130,9 @@ export function SupportPage() {
       const data = (await res.json()) as { profile: SupportProfile | null };
       setProfile(data.profile);
       if (data.profile) setForm(formFromProfile(data.profile));
-      setMessage("Perfil atualizado.");
+      setMessage("Profile updated.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Erro ao salvar perfil.");
+      setMessage(error instanceof Error ? error.message : "Failed to save profile.");
     } finally {
       setSaving(false);
     }
@@ -150,9 +151,9 @@ export function SupportPage() {
       const data = (await res.json()) as { profile: SupportProfile | null };
       setProfile(data.profile);
       if (data.profile) setForm(formFromProfile(data.profile));
-      setMessage("Problema criado. Abra o console e use o prompt sugerido.");
+      setMessage("Issue created. Open the console and use the suggested prompt.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Erro ao criar problema.");
+      setMessage(error instanceof Error ? error.message : "Failed to create issue.");
     } finally {
       setSaving(false);
     }
