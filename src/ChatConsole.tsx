@@ -73,8 +73,6 @@ const promptStarters = [
   "Quando foi o último jogo do Palmeiras?",
 ];
 
-const activeConversationStorageKey = "swarm.activeConversationId";
-
 export function ChatConsole() {
   const { isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
@@ -87,7 +85,6 @@ export function ChatConsole() {
   const [loadingConversations, setLoadingConversations] = useState(true);
   const threadRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const restoreRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -120,7 +117,6 @@ export function ChatConsole() {
       const restoredTurns = await loadConversationTurns(authedFetch, nextConversationId);
       setConversationId(nextConversationId);
       setTurns(restoredTurns);
-      localStorage.setItem(activeConversationStorageKey, nextConversationId);
     },
     [authedFetch],
   );
@@ -128,22 +124,10 @@ export function ChatConsole() {
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
 
-    restoreRef.current ??= (async () => {
-      const conversations = await refreshConversations();
-      const storedConversationId = localStorage.getItem(activeConversationStorageKey);
-      const storedConversationExists = conversations.some(
-        (conversation) => conversation.id === storedConversationId,
-      );
-      const nextConversationId = storedConversationExists
-        ? storedConversationId
-        : (conversations[0]?.id ?? null);
-
-      if (!nextConversationId) return;
-      await loadConversation(nextConversationId);
-    })().catch(() => {
-      localStorage.removeItem(activeConversationStorageKey);
-    });
-  }, [isLoaded, isSignedIn, loadConversation, refreshConversations]);
+    setTurns([]);
+    setConversationId(null);
+    void refreshConversations();
+  }, [isLoaded, isSignedIn, refreshConversations]);
 
   const selectConversation = async (nextConversationId: string) => {
     if (nextConversationId === conversationId || pending) return;
@@ -180,7 +164,6 @@ export function ChatConsole() {
       const latencyMs = Math.round(performance.now() - startedAt);
       if (data.conversationId) {
         setConversationId(data.conversationId);
-        localStorage.setItem(activeConversationStorageKey, data.conversationId);
       }
 
       setTurns((prev) => [
@@ -217,7 +200,6 @@ export function ChatConsole() {
         onReset={() => {
           setTurns([]);
           setConversationId(null);
-          localStorage.removeItem(activeConversationStorageKey);
         }}
         hasTurns={turns.length > 0}
         conversations={conversations}
