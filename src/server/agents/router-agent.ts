@@ -36,6 +36,11 @@ requiredTools must contain only exact internal tool ids from this list:
 - getOpenTickets
 - createSupportTicket
 - summarizeAccountIssue
+- resetPassword
+- unblockAccount
+- retryPayout
+- approveKycReview
+- clearSupportFlags
 
 Use retrieveKnowledge for knowledge routes, webSearch for general_web routes, and getCustomerProfile plus getRecentTransactions for support routes. Prefer support when the message mentions "my account", "balance", "money", "available", "transfer", "sign in", "blocked", "not able", "failed", or "can't".`,
   });

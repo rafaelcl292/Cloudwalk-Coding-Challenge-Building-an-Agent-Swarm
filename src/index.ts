@@ -3,6 +3,7 @@ import index from "./index.html";
 import {
   apiRoute,
   chatRoute,
+  clearSupportFlagsRoute,
   conversationMessagesRoute,
   conversationsRoute,
   createSupportProblemRoute,
@@ -45,6 +46,9 @@ const server = serve({
 
     "/api/me/support-problems": apiRoute({ POST: createSupportProblemRoute }),
     "/api/v1/me/support-problems": apiRoute({ POST: createSupportProblemRoute }),
+
+    "/api/me/support-flags/clear": apiRoute({ POST: clearSupportFlagsRoute }),
+    "/api/v1/me/support-flags/clear": apiRoute({ POST: clearSupportFlagsRoute }),
 
     "/api/dashboard": apiRoute({ GET: dashboardRoute }),
     "/api/v1/dashboard": apiRoute({ GET: dashboardRoute }),

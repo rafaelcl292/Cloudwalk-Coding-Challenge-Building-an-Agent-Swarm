@@ -11,7 +11,12 @@ type RouteToolName =
   | "getRecentTransactions"
   | "getOpenTickets"
   | "createSupportTicket"
-  | "summarizeAccountIssue";
+  | "summarizeAccountIssue"
+  | "resetPassword"
+  | "unblockAccount"
+  | "retryPayout"
+  | "approveKycReview"
+  | "clearSupportFlags";
 
 type AgentName = "guardrails" | "knowledge" | "support";
 
@@ -649,7 +654,12 @@ function isRouteToolName(value: unknown): value is RouteToolName {
     value === "getRecentTransactions" ||
     value === "getOpenTickets" ||
     value === "createSupportTicket" ||
-    value === "summarizeAccountIssue"
+    value === "summarizeAccountIssue" ||
+    value === "resetPassword" ||
+    value === "unblockAccount" ||
+    value === "retryPayout" ||
+    value === "approveKycReview" ||
+    value === "clearSupportFlags"
   );
 }
 

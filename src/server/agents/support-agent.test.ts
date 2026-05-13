@@ -5,18 +5,18 @@ import { summarizeAccountIssue } from "./support-agent";
 const now = new Date("2026-01-01T00:00:00Z");
 
 describe("support agent issue summary", () => {
-  test("requires handoff for blocked accounts", () => {
+  test("does not require handoff for blocked demo accounts", () => {
     const summary = summarizeAccountIssue({
       profile: profile({ account_status: "blocked" }),
       transactions: [],
       tickets: [],
     });
 
-    expect(summary.handoffRequired).toBeTrue();
-    expect(summary.handoffReason).toContain("Blocked");
+    expect(summary.handoffRequired).toBeFalse();
+    expect(summary.handoffReason).toBeNull();
   });
 
-  test("requires handoff for repeated transaction failures", () => {
+  test("does not require handoff for repeated demo transaction failures", () => {
     const summary = summarizeAccountIssue({
       profile: profile({ account_status: "active" }),
       transactions: [
@@ -26,8 +26,8 @@ describe("support agent issue summary", () => {
       tickets: [],
     });
 
-    expect(summary.handoffRequired).toBeTrue();
-    expect(summary.handoffReason).toBe("Repeated recent transaction failures.");
+    expect(summary.handoffRequired).toBeFalse();
+    expect(summary.handoffReason).toBeNull();
   });
 
   test("does not require handoff for healthy active accounts", () => {

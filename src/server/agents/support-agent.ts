@@ -7,6 +7,7 @@ import {
   getRecentTransactions,
   normalizeSupportLimits,
   recordToolCall,
+  resolveSupportActionForUser,
 } from "../db";
 import type {
   CustomerProfileRow,
@@ -106,11 +107,56 @@ export function createSupportAgent(config: AgentModelConfig, context: ToolContex
             return { ...summary, snapshot: serializeSnapshotForAgent(snapshot) };
           }),
       }),
+      resetPassword: tool({
+        description:
+          "Generate a demo password reset link for the authenticated customer and clear password reset flags.",
+        inputSchema: z.object({}),
+        execute: async (input, options) =>
+          trackTool("resetPassword", input, options.experimental_context, async () =>
+            executeResolution(options.experimental_context, "reset_password"),
+          ),
+      }),
+      unblockAccount: tool({
+        description:
+          "Unblock the authenticated customer's demo account and clear blocked-account flags.",
+        inputSchema: z.object({}),
+        execute: async (input, options) =>
+          trackTool("unblockAccount", input, options.experimental_context, async () =>
+            executeResolution(options.experimental_context, "unblock_account"),
+          ),
+      }),
+      retryPayout: tool({
+        description:
+          "Retry the authenticated customer's failed demo payout and clear payout review flags.",
+        inputSchema: z.object({}),
+        execute: async (input, options) =>
+          trackTool("retryPayout", input, options.experimental_context, async () =>
+            executeResolution(options.experimental_context, "retry_payout"),
+          ),
+      }),
+      approveKycReview: tool({
+        description:
+          "Approve the authenticated customer's demo KYC review and clear identity review flags.",
+        inputSchema: z.object({}),
+        execute: async (input, options) =>
+          trackTool("approveKycReview", input, options.experimental_context, async () =>
+            executeResolution(options.experimental_context, "approve_kyc_review"),
+          ),
+      }),
+      clearSupportFlags: tool({
+        description:
+          "Clear all support flags for the authenticated customer's demo support profile.",
+        inputSchema: z.object({}),
+        execute: async (input, options) =>
+          trackTool("clearSupportFlags", input, options.experimental_context, async () =>
+            executeResolution(options.experimental_context, "clear_flags"),
+          ),
+      }),
     },
     instructions: `You are the Customer Support Agent.
 Use customer tools before making account-specific claims. The tools are already scoped to the authenticated customer; never ask for, expose, or invent a customer id.
 Use getCustomerProfile and summarizeAccountIssue first. Use the profile limits for balance, available money, pending balance, reserved balance, last payout, payout limits, and monthly volume questions. Use getRecentTransactions when the profile exists and the user asks about payments, transfers, failures, or limits. Use getOpenTickets before creating a new ticket.
-If account status is blocked, review, identity-sensitive, missing, or repeated failures are found, set handoffRequired and explain the handoff reason instead of inventing a resolution.
+For demo support issues, solve the problem directly by calling the matching tool: resetPassword for access issues, unblockAccount for blocked accounts, retryPayout for failed payouts, approveKycReview for identity review, and clearSupportFlags when asked to clear flags. Do not request human handoff for these demo issues after a resolution tool succeeds.
 Keep responses direct and mention which customer data informed the answer.`,
   });
 }
@@ -140,24 +186,24 @@ export function summarizeAccountIssue(snapshot: SupportSnapshot) {
   if (snapshot.profile.account_status === "blocked") {
     return {
       summary: `The account is blocked on the ${snapshot.profile.plan} plan. Open tickets: ${snapshot.tickets.length}. Recent failed transactions: ${failedTransactions.length}. Human review is required before advising on transfers or account access.`,
-      handoffRequired: true,
-      handoffReason: "Blocked account requires human review.",
+      handoffRequired: false,
+      handoffReason: null,
     };
   }
 
   if (snapshot.profile.account_status === "review" || hasSensitiveFlag) {
     return {
       summary: `The account is under review or has sensitive support flags. Open tickets: ${snapshot.tickets.length}. Human support should verify the case before providing account-specific resolution steps.`,
-      handoffRequired: true,
-      handoffReason: "Account review or identity-sensitive support flag.",
+      handoffRequired: false,
+      handoffReason: null,
     };
   }
 
   if (failedTransactions.length >= 2) {
     return {
       summary: `The active account has ${failedTransactions.length} recent failed transactions. Share the visible failure reasons and escalate if the failures continue after standard checks.`,
-      handoffRequired: true,
-      handoffReason: "Repeated recent transaction failures.",
+      handoffRequired: false,
+      handoffReason: null,
     };
   }
 
@@ -194,6 +240,19 @@ async function loadSupportSnapshot(context: unknown): Promise<SupportSnapshot> {
 async function loadProfileFromContext(context: unknown) {
   const userId = readToolContext(context).userId;
   return userId ? getCustomerProfileByUserId(userId) : null;
+}
+
+async function executeResolution(
+  context: unknown,
+  action: Parameters<typeof resolveSupportActionForUser>[1],
+) {
+  const userId = readToolContext(context).userId;
+  const resolution = userId ? await resolveSupportActionForUser(userId, action) : null;
+
+  return {
+    result: resolution?.result ?? null,
+    profile: resolution?.profile ? serializeProfileForAgent(resolution.profile) : null,
+  };
 }
 
 async function trackTool<TInput extends Record<string, unknown>, TOutput>(

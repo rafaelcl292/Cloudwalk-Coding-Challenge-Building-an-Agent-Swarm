@@ -4,6 +4,7 @@ import {
   getDashboardMetrics,
   getConversationForUser,
   applySupportProblemForUser,
+  clearSupportFlagsForUser,
   ensureCustomerProfileForUser,
   listConversationMessages,
   listConversationsForUser,
@@ -304,6 +305,38 @@ export async function createSupportProblemRoute(req: Request) {
       503,
       "CONFIGURATION_ERROR",
       "Support problem could not be created.",
+      error instanceof Error ? { message: error.message } : undefined,
+    );
+  }
+}
+
+export async function clearSupportFlagsRoute(req: Request) {
+  const context = createRequestContext(req);
+  const auth = await requireAuth(req, context);
+
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  try {
+    const user = await upsertUser({ clerkUserId: auth.user.userId });
+    if (!user) {
+      return apiError(context.requestId, 503, "CONFIGURATION_ERROR", "User store unavailable.");
+    }
+
+    const profile = await clearSupportFlagsForUser(user.id);
+
+    return jsonResponse({
+      apiVersion,
+      requestId: context.requestId,
+      profile: profile ? serializeCustomerProfile(profile) : null,
+    });
+  } catch (error) {
+    return apiError(
+      context.requestId,
+      503,
+      "CONFIGURATION_ERROR",
+      "Support flags could not be cleared.",
       error instanceof Error ? { message: error.message } : undefined,
     );
   }

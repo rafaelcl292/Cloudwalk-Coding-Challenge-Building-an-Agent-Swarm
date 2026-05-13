@@ -176,6 +176,29 @@ export function SupportPage() {
     }
   };
 
+  const clearFlags = async () => {
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await authedFetch("/api/me/support-flags/clear", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as ApiError | null;
+        throw new Error(body?.error?.message ?? `HTTP ${res.status}`);
+      }
+      const data = (await res.json()) as { profile: SupportProfile | null };
+      setProfile(data.profile);
+      if (data.profile) setForm(formFromProfile(data.profile));
+      setMessage("Support flags cleared.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to clear flags.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-[1500px] px-6 sm:px-10 lg:px-14 py-10">
       <PageHeader
@@ -299,6 +322,14 @@ export function SupportPage() {
                 className="btn-ember px-5 py-2.5 text-xs uppercase tracking-[0.15em] rounded"
               >
                 {saving ? "Saving..." : "Save profile"}
+              </button>
+              <button
+                type="button"
+                onClick={clearFlags}
+                disabled={saving || loading || !profile?.supportFlags.length}
+                className="btn-ghost px-5 py-2.5 text-xs uppercase tracking-[0.15em] rounded disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Clear flags
               </button>
               {message ? (
                 <span className="font-mono text-[11px] text-paper-mute">{message}</span>

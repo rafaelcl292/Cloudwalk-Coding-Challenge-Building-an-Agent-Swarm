@@ -15,6 +15,13 @@ export type SupportProblemKind =
   | "payment_declined"
   | "kyc_review";
 
+export type SupportResolutionAction =
+  | "reset_password"
+  | "unblock_account"
+  | "retry_payout"
+  | "approve_kyc_review"
+  | "clear_flags";
+
 export type CreateSupportTicketInput = {
   customerId: string;
   subject: string;
@@ -230,6 +237,126 @@ export async function applySupportProblemForUser(
   );
 
   return { profile: updated, ticket };
+}
+
+export async function clearSupportFlagsForUser(userId: string, database: Database = getDb()) {
+  const rows = await database<CustomerProfileRow[]>`
+    UPDATE customer_profiles
+    SET
+      account_status = CASE
+        WHEN account_status IN ('blocked', 'review') THEN 'active'
+        ELSE account_status
+      END,
+      support_flags = ARRAY[]::text[]
+    WHERE user_id = ${userId}
+    RETURNING *
+  `;
+
+  return rows[0] ?? null;
+}
+
+export async function resolveSupportActionForUser(
+  userId: string,
+  action: SupportResolutionAction,
+  database: Database = getDb(),
+) {
+  const profile = await getCustomerProfileByUserId(userId, database);
+  if (!profile) return null;
+  const existingProfile = profile;
+
+  switch (action) {
+    case "reset_password":
+      return {
+        profile: await updateProfileState(profile.id, {
+          accountStatus: existingProfile.account_status,
+          removeFlags: ["password_reset_requested"],
+        }),
+        result: {
+          action,
+          status: "completed",
+          message: "Password reset link generated and sent to the account email.",
+          resetLink: "https://app.infinitepay.io/reset-password/demo-token",
+        },
+      };
+    case "unblock_account":
+      return {
+        profile: await updateProfileState(profile.id, {
+          accountStatus: "active",
+          removeFlags: ["blocked_account", "human_handoff_required"],
+        }),
+        result: {
+          action,
+          status: "completed",
+          message: "Account was unblocked and payout access was restored for the demo profile.",
+        },
+      };
+    case "retry_payout": {
+      const updated = await updateProfileState(profile.id, {
+        accountStatus: "active",
+        removeFlags: ["recent_transfer_failures", "manual_review"],
+      });
+      await database`
+        INSERT INTO customer_transactions (
+          customer_id,
+          transaction_type,
+          amount_cents,
+          currency,
+          status,
+          failure_reason,
+          occurred_at
+        )
+        VALUES (${profile.id}, 'payout', 120000, 'BRL', 'approved', NULL, now())
+      `;
+      return {
+        profile: updated,
+        result: {
+          action,
+          status: "completed",
+          message: "Payout was retried successfully for the demo profile.",
+        },
+      };
+    }
+    case "approve_kyc_review":
+      return {
+        profile: await updateProfileState(profile.id, {
+          accountStatus: "active",
+          removeFlags: ["kyc_review", "identity_review"],
+        }),
+        result: {
+          action,
+          status: "completed",
+          message: "KYC review was approved and the account is active for the demo profile.",
+        },
+      };
+    case "clear_flags":
+      return {
+        profile: await clearSupportFlagsForUser(userId, database),
+        result: {
+          action,
+          status: "completed",
+          message: "All support flags were cleared for the demo profile.",
+        },
+      };
+  }
+
+  async function updateProfileState(
+    customerId: string,
+    input: { accountStatus: AccountStatus; removeFlags: string[] },
+  ) {
+    const nextFlags = existingProfile.support_flags.filter(
+      (flag) => !input.removeFlags.includes(flag),
+    );
+    const rows = await database<CustomerProfileRow[]>`
+      UPDATE customer_profiles
+      SET
+        account_status = ${input.accountStatus},
+        support_flags = ${database.array(nextFlags, "TEXT")}
+      WHERE id = ${customerId}
+      RETURNING *
+    `;
+
+    return rows[0] ?? existingProfile;
+  }
 }
 
 export async function getRecentTransactions(

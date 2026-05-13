@@ -18,6 +18,11 @@ export const routeToolNameSchema = z.enum([
   "getOpenTickets",
   "createSupportTicket",
   "summarizeAccountIssue",
+  "resetPassword",
+  "unblockAccount",
+  "retryPayout",
+  "approveKycReview",
+  "clearSupportFlags",
 ]);
 
 export const routePlanSchema = z.object({
