@@ -43,6 +43,40 @@ Run tests:
 bun test
 ```
 
+## AWS Deployment
+
+This repo includes a small AWS ops script for the current `us-east-2` deployment. It uses the local `.env` values, adds `NODE_ENV=production`, points `DATABASE_URL` at the RDS instance, uploads a release tarball to S3, replaces the EC2 app instance, runs migrations/seeds, and waits for `/api/health`.
+
+The local `.aws-deploy.json` file stores AWS resource IDs and the generated RDS password. It is intentionally ignored by git.
+
+Deploy a new version:
+
+```bash
+bun run aws:deploy
+```
+
+Check what is running:
+
+```bash
+bun run aws:status
+```
+
+Put the system down while keeping database data:
+
+```bash
+bun run aws:down
+```
+
+This terminates the app EC2 instance and stops RDS. AWS can automatically restart a stopped RDS instance after 7 days.
+
+Permanently destroy the app and database:
+
+```bash
+bun run aws:destroy
+```
+
+`aws:destroy` deletes the RDS instance without a final snapshot.
+
 Start local Postgres and apply the database schema:
 
 ```bash
