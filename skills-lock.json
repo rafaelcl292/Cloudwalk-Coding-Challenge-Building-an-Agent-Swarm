@@ -36,6 +36,18 @@
       "sourceType": "github",
       "skillPath": "skills/frontend-design/SKILL.md",
       "computedHash": "063a0e6448123cd359ad0044cc46b0e490cc7964d45ef4bb9fd842bd2ffbca67"
+    },
+    "integrate-whatsapp": {
+      "source": "gokapso/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/integrate-whatsapp/SKILL.md",
+      "computedHash": "0b5255392801034a44121a1984e2ef812b4de05d7bc0a969eed083aa0a6cd352"
+    },
+    "observe-whatsapp": {
+      "source": "gokapso/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/observe-whatsapp/SKILL.md",
+      "computedHash": "aa68f87e0dd8811388939b82dd3291a7e38831e08d35822efc996397ade5bda8"
     }
   }
 }

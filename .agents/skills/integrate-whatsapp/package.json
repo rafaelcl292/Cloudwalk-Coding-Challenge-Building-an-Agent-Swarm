@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "scripts": {
+    "openapi": "node scripts/openapi-explore.mjs"
+  },
+  "dependencies": {
+    "yaml": "^2.6.0"
+  }
+}
