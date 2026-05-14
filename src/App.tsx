@@ -8,6 +8,8 @@ import { SupportPage } from "./SupportPage";
 import { hrefFor, navigate, type Route, useRoute } from "./useRoute";
 import "./index.css";
 
+const whatsappSupportUrl = "https://wa.me/5511984952410?text=Hello%20Swarm%20Support";
+
 export function App() {
   const route = useRoute();
   const { isLoaded, isSignedIn } = useAuth();
@@ -99,6 +101,14 @@ function Masthead({ route }: { route: Route }) {
             />
             Live
           </span>
+          <a
+            href={whatsappSupportUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="btn-ghost px-3 py-2 text-xs uppercase tracking-[0.15em] rounded hidden sm:inline-flex"
+          >
+            WhatsApp
+          </a>
           <UserButton />
         </div>
       </div>
@@ -152,6 +162,14 @@ function SignedOutHero({ isSignedIn }: { isSignedIn: boolean }) {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <a
+              href={whatsappSupportUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="btn-ghost px-4 py-2 text-xs hidden sm:inline-flex"
+            >
+              WhatsApp
+            </a>
             {isSignedIn ? (
               <button
                 type="button"
@@ -202,13 +220,23 @@ function SignedOutHero({ isSignedIn }: { isSignedIn: boolean }) {
               </p>
               <div className="mt-9 flex flex-wrap gap-3 anim-rise stagger-2">
                 {isSignedIn ? (
-                  <button
-                    type="button"
-                    onClick={() => navigate("console")}
-                    className="btn-ember px-6 py-3 text-xs uppercase tracking-[0.18em]"
-                  >
-                    Open console
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => navigate("console")}
+                      className="btn-ember px-6 py-3 text-xs uppercase tracking-[0.18em]"
+                    >
+                      Open console
+                    </button>
+                    <a
+                      href={whatsappSupportUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="btn-ghost px-6 py-3 text-xs uppercase tracking-[0.18em]"
+                    >
+                      Open WhatsApp
+                    </a>
+                  </>
                 ) : (
                   <>
                     <SignUpButton mode="modal">
@@ -224,6 +252,14 @@ function SignedOutHero({ isSignedIn }: { isSignedIn: boolean }) {
                         I&rsquo;m a returning subscriber
                       </button>
                     </SignInButton>
+                    <a
+                      href={whatsappSupportUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="btn-ghost px-6 py-3 text-xs uppercase tracking-[0.18em]"
+                    >
+                      Try WhatsApp
+                    </a>
                   </>
                 )}
               </div>
