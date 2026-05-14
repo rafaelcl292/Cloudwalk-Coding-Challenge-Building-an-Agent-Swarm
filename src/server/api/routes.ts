@@ -685,7 +685,9 @@ function normalizeWhatsappEvents(
     ? payload
     : isRecord(payload) && Array.isArray(payload.events)
       ? payload.events
-      : [payload];
+      : isRecord(payload) && Array.isArray(payload.data)
+        ? payload.data
+        : [payload];
 
   return items.flatMap((item, index): WhatsappWebhookEvent[] => {
     if (!isRecord(item)) return [];
@@ -693,12 +695,13 @@ function normalizeWhatsappEvents(
     const event = typeof item.event === "string" ? item.event : eventName;
     if (event !== "whatsapp.message.received") return [];
 
-    const message = isRecord(item.message) ? item.message : {};
+    const message = isRecord(item.message) ? item.message : item;
     const kapso = isRecord(message.kapso) ? message.kapso : {};
     const conversation = isRecord(item.conversation) ? item.conversation : {};
     const phoneNumberId =
       readString(item.phone_number_id) ??
       readString(conversation.phone_number_id) ??
+      readString(kapso.phone_number_id) ??
       process.env.WHATSAPP_PHONE_NUMBER_ID ??
       defaultWhatsappPhoneNumberId;
     const messageId = readString(message.id);
@@ -709,6 +712,7 @@ function normalizeWhatsappEvents(
     const from =
       readString(message.from) ??
       readString(item.wa_id) ??
+      readString(kapso.phone_number) ??
       readString(conversation.phone_number) ??
       readString(conversation.wa_id);
 
