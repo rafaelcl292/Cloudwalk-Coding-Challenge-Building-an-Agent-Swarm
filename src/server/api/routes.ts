@@ -60,6 +60,9 @@ const supportProblemBodySchema = z.object({
   ]),
 });
 
+const defaultWhatsappPhoneNumberId = "995559796972387";
+const processedWhatsappEvents = new Set<string>();
+
 type Handler = (req: Request) => Response | Promise<Response>;
 type MethodHandlers = Partial<Record<"GET" | "POST" | "PUT" | "PATCH" | "DELETE", Handler>>;
 
@@ -85,6 +88,55 @@ export async function healthRoute(req: Request) {
     apiVersion,
     requestId: context.requestId,
     timestamp: new Date().toISOString(),
+  });
+}
+
+export async function whatsappWebhookRoute(req: Request) {
+  const context = createRequestContext(req);
+  const rawBody = await req.text();
+  const signature = req.headers.get("x-webhook-signature");
+  const eventName = req.headers.get("x-webhook-event");
+  const idempotencyKey = req.headers.get("x-idempotency-key");
+
+  if (!(await verifyKapsoSignature(rawBody, signature))) {
+    return apiError(context.requestId, 401, "UNAUTHORIZED", "Invalid webhook signature.");
+  }
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(rawBody);
+  } catch {
+    return apiError(context.requestId, 400, "BAD_REQUEST", "Invalid webhook JSON body.");
+  }
+
+  const events = normalizeWhatsappEvents(payload, eventName, idempotencyKey);
+  for (const event of events) {
+    if (event.idempotencyKey && processedWhatsappEvents.has(event.idempotencyKey)) {
+      continue;
+    }
+    if (event.idempotencyKey) {
+      processedWhatsappEvents.add(event.idempotencyKey);
+      if (processedWhatsappEvents.size > 500) {
+        processedWhatsappEvents.clear();
+      }
+    }
+
+    void processWhatsappMessage(event).catch((error) => {
+      console.error("[whatsapp] failed to process webhook", {
+        requestId: context.requestId,
+        event: event.event,
+        phoneNumberId: event.phoneNumberId,
+        messageId: event.messageId,
+        error,
+      });
+    });
+  }
+
+  return jsonResponse({
+    status: "accepted",
+    apiVersion,
+    requestId: context.requestId,
+    received: events.length,
   });
 }
 
@@ -581,4 +633,206 @@ export function unknownApiRoute(req: Request) {
   const context = createRequestContext(req);
 
   return notFound(context.requestId);
+}
+
+type WhatsappWebhookEvent = {
+  event: string;
+  idempotencyKey: string | null;
+  phoneNumberId: string;
+  messageId: string | null;
+  from: string | null;
+  text: string | null;
+  raw: Record<string, unknown>;
+};
+
+async function verifyKapsoSignature(rawBody: string, signature: string | null) {
+  const secret = process.env.KAPSO_WEBHOOK_SECRET;
+  if (!secret) return true;
+  if (!signature) return false;
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const digest = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody));
+  const expected = [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+
+  return timingSafeEqualHex(expected, signature);
+}
+
+function timingSafeEqualHex(expected: string, actual: string) {
+  const normalizedActual = actual.trim().toLowerCase();
+  if (expected.length !== normalizedActual.length) return false;
+
+  let diff = 0;
+  for (let i = 0; i < expected.length; i += 1) {
+    diff |= expected.charCodeAt(i) ^ normalizedActual.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+function normalizeWhatsappEvents(
+  payload: unknown,
+  eventName: string | null,
+  idempotencyKey: string | null,
+) {
+  const items = Array.isArray(payload)
+    ? payload
+    : isRecord(payload) && Array.isArray(payload.events)
+      ? payload.events
+      : [payload];
+
+  return items.flatMap((item, index): WhatsappWebhookEvent[] => {
+    if (!isRecord(item)) return [];
+
+    const event = typeof item.event === "string" ? item.event : eventName;
+    if (event !== "whatsapp.message.received") return [];
+
+    const message = isRecord(item.message) ? item.message : {};
+    const kapso = isRecord(message.kapso) ? message.kapso : {};
+    const conversation = isRecord(item.conversation) ? item.conversation : {};
+    const phoneNumberId =
+      readString(item.phone_number_id) ??
+      readString(conversation.phone_number_id) ??
+      process.env.WHATSAPP_PHONE_NUMBER_ID ??
+      defaultWhatsappPhoneNumberId;
+    const messageId = readString(message.id);
+    const text =
+      readString(kapso.content) ??
+      (isRecord(message.text) ? readString(message.text.body) : null) ??
+      readString(kapso.transcript);
+    const from =
+      readString(message.from) ??
+      readString(item.wa_id) ??
+      readString(conversation.phone_number) ??
+      readString(conversation.wa_id);
+
+    if (!text || !from) return [];
+
+    return [
+      {
+        event,
+        idempotencyKey:
+          idempotencyKey ?? messageId ?? `${phoneNumberId}:${from}:${Date.now()}:${index}`,
+        phoneNumberId,
+        messageId,
+        from: normalizeWhatsappRecipient(from),
+        text,
+        raw: item,
+      },
+    ];
+  });
+}
+
+async function processWhatsappMessage(event: WhatsappWebhookEvent) {
+  if (event.messageId) {
+    await markWhatsappMessageRead(event.phoneNumberId, event.messageId).catch((error) => {
+      console.warn("[whatsapp] failed to mark message read", {
+        messageId: event.messageId,
+        error,
+      });
+    });
+  }
+
+  const user = await upsertUser({
+    clerkUserId: `whatsapp:${event.from}`,
+    email: null,
+  });
+
+  if (user) {
+    await ensureCustomerProfileForUser({
+      userId: user.id,
+      clerkUserId: `whatsapp:${event.from}`,
+      name: `WhatsApp ${event.from}`,
+      email: null,
+    });
+  }
+
+  const result = await runSwarm({
+    message: event.text ?? "",
+    challengeUserId: event.from ?? "whatsapp",
+    authenticatedUserId: `whatsapp:${event.from}`,
+    requestId: event.idempotencyKey ?? crypto.randomUUID(),
+  });
+
+  await sendWhatsappText({
+    phoneNumberId: event.phoneNumberId,
+    to: event.from ?? "",
+    body: result.response,
+    replyToMessageId: event.messageId,
+  });
+}
+
+async function markWhatsappMessageRead(phoneNumberId: string, messageId: string) {
+  await kapsoMetaRequest(phoneNumberId, {
+    messaging_product: "whatsapp",
+    status: "read",
+    message_id: messageId,
+    typing_indicator: { type: "text" },
+  });
+}
+
+async function sendWhatsappText(input: {
+  phoneNumberId: string;
+  to: string;
+  body: string;
+  replyToMessageId?: string | null;
+}) {
+  await kapsoMetaRequest(input.phoneNumberId, {
+    messaging_product: "whatsapp",
+    to: input.to,
+    type: "text",
+    ...(input.replyToMessageId ? { context: { message_id: input.replyToMessageId } } : {}),
+    text: {
+      body: truncateWhatsappText(input.body),
+      preview_url: false,
+    },
+  });
+}
+
+async function kapsoMetaRequest(phoneNumberId: string, body: Record<string, unknown>) {
+  const apiKey = process.env.KAPSO_API_KEY;
+  if (!apiKey) {
+    throw new Error("KAPSO_API_KEY is required for WhatsApp messaging.");
+  }
+
+  const baseUrl = (process.env.KAPSO_API_BASE_URL || "https://api.kapso.ai").replace(/\/+$/, "");
+  const graphVersion = process.env.META_GRAPH_VERSION || "v24.0";
+  const url = `${baseUrl}/meta/whatsapp/${graphVersion}/${phoneNumberId}/messages`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": apiKey,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Kapso WhatsApp API failed (${res.status}) ${text}`);
+  }
+}
+
+function truncateWhatsappText(text: string) {
+  const maxLength = 3900;
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function normalizeWhatsappRecipient(value: string) {
+  return value.replace(/[^\d]/g, "");
+}
+
+function readString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

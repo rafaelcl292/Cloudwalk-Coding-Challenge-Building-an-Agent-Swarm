@@ -14,6 +14,7 @@ import {
   supportProfileRoute,
   swarmRoute,
   updateSupportProfileRoute,
+  whatsappWebhookRoute,
   unknownApiRoute,
 } from "./server/api/routes";
 
@@ -25,6 +26,9 @@ const server = serve({
 
     "/api/chat": apiRoute({ POST: chatRoute }),
     "/api/v1/chat": apiRoute({ POST: chatRoute }),
+
+    "/api/whatsapp/webhook": apiRoute({ POST: whatsappWebhookRoute }),
+    "/api/v1/whatsapp/webhook": apiRoute({ POST: whatsappWebhookRoute }),
 
     "/api/swarm": apiRoute({ POST: swarmRoute }),
     "/api/v1/swarm": apiRoute({ POST: swarmRoute }),
