@@ -59,7 +59,7 @@ function SignedInShell({ route }: { route: Route }) {
 function Masthead({ route }: { route: Route }) {
   return (
     <header className="border-b border-rule">
-      <div className="mx-auto max-w-[1500px] px-6 sm:px-10 lg:px-14 py-4 flex items-center justify-between gap-6">
+      <div className="mx-auto max-w-375 px-6 sm:px-10 lg:px-14 py-4 flex items-center justify-between gap-6">
         <a
           href={hrefFor("console")}
           onClick={(e) => {
@@ -153,7 +153,7 @@ function SignedOutHero({ isSignedIn }: { isSignedIn: boolean }) {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-rule">
-        <div className="mx-auto max-w-[1500px] px-6 sm:px-10 lg:px-14 py-5 flex items-center justify-between">
+        <div className="mx-auto max-w-375 px-6 sm:px-10 lg:px-14 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="ornament text-3xl leading-none">❦</span>
             <div className="leading-tight">
@@ -201,7 +201,7 @@ function SignedOutHero({ isSignedIn }: { isSignedIn: boolean }) {
 
       <main className="flex-1">
         <section className="border-b border-rule">
-          <div className="mx-auto max-w-[1500px] px-6 sm:px-10 lg:px-14 py-16 lg:py-24 grid grid-cols-1 lg:grid-cols-12 gap-10 items-end">
+          <div className="mx-auto max-w-375 px-6 sm:px-10 lg:px-14 py-16 lg:py-24 grid grid-cols-1 lg:grid-cols-12 gap-10 items-end">
             <div className="lg:col-span-8">
               <div className="kicker anim-fade">Edition · No. 0001 · The masthead issue</div>
               <h1 className="display text-[clamp(3rem,8vw,7.5rem)] mt-4 anim-rise">
@@ -283,7 +283,7 @@ function SignedOutHero({ isSignedIn }: { isSignedIn: boolean }) {
         </section>
 
         <section className="border-b border-rule">
-          <div className="mx-auto max-w-[1500px] px-6 sm:px-10 lg:px-14 py-14 grid grid-cols-1 md:grid-cols-3 gap-px bg-rule border border-rule">
+          <div className="mx-auto max-w-375 px-6 sm:px-10 lg:px-14 py-14 grid grid-cols-1 md:grid-cols-3 gap-px bg-rule border border-rule">
             <Feature
               num="I"
               title="The Router decides"
@@ -303,7 +303,7 @@ function SignedOutHero({ isSignedIn }: { isSignedIn: boolean }) {
         </section>
 
         <section>
-          <div className="mx-auto max-w-[1500px] px-6 sm:px-10 lg:px-14 py-14 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <div className="mx-auto max-w-375 px-6 sm:px-10 lg:px-14 py-14 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
               <div className="kicker">Featured dispatch · Specimen</div>
               <blockquote className="display text-[clamp(1.75rem,3.4vw,2.75rem)] mt-3 leading-[1.05]">
@@ -337,7 +337,7 @@ function SignedOutHero({ isSignedIn }: { isSignedIn: boolean }) {
       </main>
 
       <footer className="border-t border-rule">
-        <div className="mx-auto max-w-[1500px] px-6 sm:px-10 lg:px-14 py-6 flex flex-col sm:flex-row items-baseline justify-between gap-3">
+        <div className="mx-auto max-w-375 px-6 sm:px-10 lg:px-14 py-6 flex flex-col sm:flex-row items-baseline justify-between gap-3">
           <div className="kicker">© CloudWalk · A coding challenge, set in print</div>
           <div className="kicker text-paper-mute">All routes typed. All sources kept.</div>
         </div>

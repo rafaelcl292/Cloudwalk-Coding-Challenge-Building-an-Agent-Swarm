@@ -216,7 +216,7 @@ export function ChatConsole() {
 
       <section className="flex flex-col min-h-0 relative">
         <div ref={threadRef} className="flex-1 overflow-y-auto px-4 sm:px-8 py-6">
-          <div className="max-w-[44rem] mx-auto">
+          <div className="max-w-176 mx-auto">
             {turns.length === 0 ? (
               <EmptyState />
             ) : (
@@ -450,7 +450,7 @@ function AssistantBubble({ turn }: { turn: Extract<Turn, { kind: "assistant" }> 
                   {prettyUrl(src)}
                 </a>
               ) : (
-                <span className="text-paper-dim break-words">{src}</span>
+                <span className="text-paper-dim wrap-break-word">{src}</span>
               )}
             </li>
           ))}
@@ -475,7 +475,7 @@ function DetailsPanel({
     <div className="mt-3 border-l border-rule pl-3 anim-fade space-y-2">
       <DetailRow label="confidence">
         <span className="inline-flex items-center gap-2">
-          <span className="relative w-16 h-[3px] bg-rule">
+          <span className="relative w-16 h-0.75 bg-rule">
             <span
               className="absolute inset-y-0 left-0"
               style={{
@@ -682,7 +682,7 @@ function Composer({
 }) {
   return (
     <div className="border-t border-rule bg-ink/95 backdrop-blur-sm sticky bottom-0">
-      <div className="max-w-[44rem] mx-auto px-4 sm:px-8 py-4">
+      <div className="max-w-176 mx-auto px-4 sm:px-8 py-4">
         {starters.length > 0 ? (
           <div className="flex flex-wrap gap-2 mb-3">
             {starters.map((q) => (

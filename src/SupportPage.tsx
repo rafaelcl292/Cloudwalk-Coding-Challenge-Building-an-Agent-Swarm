@@ -200,7 +200,7 @@ export function SupportPage() {
   };
 
   return (
-    <div className="mx-auto max-w-[1500px] px-6 sm:px-10 lg:px-14 py-10">
+    <div className="mx-auto max-w-375 px-6 sm:px-10 lg:px-14 py-10">
       <PageHeader
         kicker="Section · Support lab"
         title="Customer State"

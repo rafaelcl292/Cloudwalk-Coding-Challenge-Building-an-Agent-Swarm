@@ -78,7 +78,7 @@ export function DashboardPage() {
   }, [authedFetch, isLoaded, isSignedIn]);
 
   return (
-    <div className="mx-auto max-w-[1500px] px-6 sm:px-10 lg:px-14 py-10">
+    <div className="mx-auto max-w-375 px-6 sm:px-10 lg:px-14 py-10">
       <PageHeader
         kicker="Section · Operations"
         title="The Daily Bulletin"
@@ -134,7 +134,7 @@ function DashboardContent({ data }: { data: DashboardResponse }) {
                   <span className="font-mono text-[11px] uppercase tracking-[0.15em] w-28 shrink-0 text-paper-dim">
                     {category.replace("_", " ")}
                   </span>
-                  <span className="relative flex-1 h-[2px] bg-rule">
+                  <span className="relative flex-1 h-0.5 bg-rule">
                     <span
                       className="absolute inset-y-0 left-0"
                       style={{

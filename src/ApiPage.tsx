@@ -156,7 +156,7 @@ export function ApiPage() {
   };
 
   return (
-    <div className="mx-auto max-w-[1500px] px-6 sm:px-10 lg:px-14 py-10">
+    <div className="mx-auto max-w-375 px-6 sm:px-10 lg:px-14 py-10">
       <PageHeader
         kicker="Section · Workshop"
         title="The Workshop"
@@ -297,7 +297,7 @@ function ResponsePanel({ response }: { response: ResponseState }) {
           </span>
         ) : null}
       </div>
-      <pre className="mt-3 font-mono text-[11px] leading-relaxed text-paper-dim bg-ink-2 border border-rule p-4 overflow-x-auto whitespace-pre-wrap break-words">
+      <pre className="mt-3 font-mono text-[11px] leading-relaxed text-paper-dim bg-ink-2 border border-rule p-4 overflow-x-auto whitespace-pre-wrap wrap-break-word">
         {response.body || "(empty body)"}
       </pre>
     </div>

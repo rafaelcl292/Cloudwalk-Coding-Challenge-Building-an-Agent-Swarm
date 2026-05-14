@@ -65,7 +65,7 @@ export function KnowledgePage() {
   const ingested = sources?.filter((s) => s.crawlStatus === "succeeded").length ?? 0;
 
   return (
-    <div className="mx-auto max-w-[1500px] px-6 sm:px-10 lg:px-14 py-10">
+    <div className="mx-auto max-w-375 px-6 sm:px-10 lg:px-14 py-10">
       <PageHeader
         kicker="Section · Sources"
         title="The Library"
