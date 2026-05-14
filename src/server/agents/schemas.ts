@@ -41,6 +41,9 @@ export const agentAnswerSchema = z.object({
   handoffReason: z.string().nullable(),
 });
 
+export const plainTextAnswerInstruction =
+  "Write user-facing answers as plain text. Do not use Markdown formatting such as **bold**, headings, tables, or bullet syntax.";
+
 export type RouteCategory = z.infer<typeof routeCategorySchema>;
 export type AgentName = z.infer<typeof agentNameSchema>;
 export type RouteToolName = z.infer<typeof routeToolNameSchema>;

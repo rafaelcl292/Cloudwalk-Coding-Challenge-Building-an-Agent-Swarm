@@ -15,7 +15,7 @@ import type {
   JsonValue,
   SupportTicketRow,
 } from "../db";
-import { agentAnswerSchema } from "./schemas";
+import { agentAnswerSchema, plainTextAnswerInstruction } from "./schemas";
 import type { AgentModelConfig } from "./model";
 
 type ToolContext = {
@@ -157,6 +157,7 @@ export function createSupportAgent(config: AgentModelConfig, context: ToolContex
 Use customer tools before making account-specific claims. The tools are already scoped to the authenticated customer; never ask for, expose, or invent a customer id.
 Use getCustomerProfile and summarizeAccountIssue first. Use the profile limits for balance, available money, pending balance, reserved balance, last payout, payout limits, and monthly volume questions. Use getRecentTransactions when the profile exists and the user asks about payments, transfers, failures, or limits. Use getOpenTickets before creating a new ticket.
 For demo support issues, solve the problem directly by calling the matching tool: resetPassword for access issues, unblockAccount for blocked accounts, retryPayout for failed payouts, approveKycReview for identity review, and clearSupportFlags when asked to clear flags. Do not request human handoff for these demo issues after a resolution tool succeeds.
+${plainTextAnswerInstruction}
 Keep responses direct and mention which customer data informed the answer.`,
   });
 }

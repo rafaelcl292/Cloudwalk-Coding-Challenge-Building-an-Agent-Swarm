@@ -2,7 +2,7 @@ import { Output, ToolLoopAgent, tool } from "ai";
 import { z } from "zod";
 import { retrieveKnowledge } from "../rag/retrieval";
 import { searchWeb } from "../rag/web-search";
-import { agentAnswerSchema } from "./schemas";
+import { agentAnswerSchema, plainTextAnswerInstruction } from "./schemas";
 import type { AgentModelConfig } from "./model";
 
 export function createKnowledgeAgent(config: AgentModelConfig) {
@@ -42,6 +42,7 @@ export function createKnowledgeAgent(config: AgentModelConfig) {
 For InfinitePay product, pricing, rate, and service questions, call retrieveKnowledge before answering and answer only from retrieved InfinitePay context.
 For current events or questions outside the InfinitePay knowledge base, call webSearch before answering. If web results are sparse, say that directly and avoid inventing fresh facts.
 When another agent already answered earlier in the route, use that prior answer as context and add only useful complementary information.
+${plainTextAnswerInstruction}
 Keep answers concise, practical, and cite source URLs when provided.`,
   });
 }
