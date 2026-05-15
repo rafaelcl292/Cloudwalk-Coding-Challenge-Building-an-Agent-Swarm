@@ -2,6 +2,10 @@
 
 This repository is a Bun + React implementation of the CloudWalk coding challenge for building an authenticated multi-agent swarm. The application will expose a challenge-compatible JSON API, a customer-facing chat UI, and an operator dashboard backed by Postgres.
 
+## Demo
+
+Watch a demonstration of the app: https://www.youtube.com/watch?v=ecdub6r8eWQ
+
 ## Stack
 
 - Bun runtime with `Bun.serve()` for the API and frontend.
